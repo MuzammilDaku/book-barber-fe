@@ -184,3 +184,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 1500);
     }
 });
+
+
+// if (!localStorage.getItem("user") && window.location.pathname !== '/login.html' && window.location.pathname !== '/register.html') {
+//     window.location.href = '/login.html';
+// }
