@@ -4,11 +4,15 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { authClient } from '@/lib/auth-client';
+import { useUserStore } from '@/store/user';
 
 export default function Header() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const { user } = useUserStore();
+  const { isPending: isAuthLoading } = authClient.useSession();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -35,8 +39,27 @@ export default function Header() {
           <li><Link href="/contact" className={isActive('/contact') ? 'active' : ''} onClick={() => setIsMenuOpen(false)}>Contact</Link></li>
         </ul>
         <div className="auth-buttons">
-          <Link href="/login" className={`btn btn-outline ${isActive('/login') ? 'active' : ''}`}>Login</Link>
-          <Link href="/register" className={`btn btn-primary ${isActive('/register') ? 'active' : ''}`}>Register</Link>
+          {isAuthLoading ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--secondary-color)' }}>
+              <i className="fas fa-spinner fa-spin"></i>
+              <span>Loading...</span>
+            </div>
+          ) : user ? (
+            user.userType === 'barber' ? (
+              <Link href="/barber/dashboard" className={`btn btn-primary ${isActive('/barber/dashboard') ? 'active' : ''}`}>
+                <i className="fas fa-tachometer-alt"></i> Dashboard
+              </Link>
+            ) : user.userType === 'customer' ? (
+              <Link href="/my-appointments" className={`btn btn-primary ${isActive('/my-appointments') ? 'active' : ''}`}>
+                <i className="fas fa-calendar-check"></i> My Appointments
+              </Link>
+            ) : null
+          ) : (
+            <>
+              <Link href="/login" className={`btn btn-outline ${isActive('/login') ? 'active' : ''}`}>Login</Link>
+              <Link href="/register" className={`btn btn-primary ${isActive('/register') ? 'active' : ''}`}>Register</Link>
+            </>
+          )}
         </div>
         <div 
           className={`hamburger ${isMenuOpen ? 'active' : ''}`}

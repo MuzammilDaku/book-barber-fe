@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import "./styles.css";
-import Script from "next/script";
+// import Script from "next/script";
+
+import { Toaster } from 'react-hot-toast';
+import { ConvexClientProvider } from "@/lib/convex-provider";
+import AuthProvider from "@/lib/auth-provider";
+
 
 const poppins = Poppins({
   weight: ['300', '400', '500', '600', '700'],
@@ -26,7 +31,12 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
       </head>
       <body className={`${poppins.variable} antialiased`}>
-        {children}
+        <ConvexClientProvider>
+          <AuthProvider>
+          {children}
+          </AuthProvider>
+          <Toaster />
+        </ConvexClientProvider>
       </body>
     </html>
   );

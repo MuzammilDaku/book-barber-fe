@@ -6,6 +6,10 @@ import Image from 'next/image';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useRouter } from 'next/navigation';
+import { authClient } from '@/lib/auth-client';
+import { useMutation } from 'convex/react';
+import toast from 'react-hot-toast';
+import { api } from '@/convex/_generated/api';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -16,12 +20,10 @@ export default function RegisterPage() {
     phone: '',
     password: '',
     confirmPassword: '',
-    shopName: '',
-    shopAddress: '',
-    experience: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const createUser = useMutation(api.functions.users.mutations.createUser);
 
   const showError = (field: string, message: string) => {
     setErrors(prev => ({ ...prev, [field]: message }));
@@ -35,7 +37,7 @@ export default function RegisterPage() {
     });
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     let isValid = true;
 
@@ -74,27 +76,44 @@ export default function RegisterPage() {
       clearError('confirmPassword');
     }
 
-    if (userType === 'barber') {
-      if (!formData.shopName) {
-        showError('shopName', 'Please enter your shop name');
-        isValid = false;
-      } else {
-        clearError('shopName');
-      }
-
-      if (!formData.shopAddress) {
-        showError('shopAddress', 'Please enter your shop address');
-        isValid = false;
-      } else {
-        clearError('shopAddress');
-      }
-    }
-
     if (isValid) {
       setIsLoading(true);
-      setTimeout(() => {
-        router.push('/login');
-      }, 1500);
+      try {
+        // First, sign up with email using Better Auth
+        const signupResult = await authClient.signUp.email({
+          email: formData.email,
+          password: formData.password,
+          name: formData.fullname,
+        });
+
+        if (signupResult.error) {
+          toast.error(signupResult.error.message || 'Signup failed');
+          showError('email', signupResult.error.message || 'Signup failed');
+          setIsLoading(false);
+          return;
+        }
+
+        // If signup successful, create user record in users table
+        try {
+          await createUser({
+            fullName: formData.fullname,
+            email: formData.email,
+            phone: formData.phone,
+            userType: userType,
+          });
+
+          toast.success('Account created successfully!');
+          router.push('/');
+        } catch (userError: any) {
+          toast.error(userError.message || 'Failed to create user profile');
+          showError('email', userError.message || 'Failed to create user profile');
+          setIsLoading(false);
+        }
+      } catch (error: any) {
+        toast.error(error.message || 'An error occurred during signup');
+        showError('email', error.message || 'An error occurred during signup');
+        setIsLoading(false);
+      }
     }
   };
 
@@ -196,49 +215,6 @@ export default function RegisterPage() {
                 />
                 {errors.confirmPassword && <div className="error-message">{errors.confirmPassword}</div>}
               </div>
-              
-              {userType === 'barber' && (
-                <div className="barber-fields">
-                  <div className="form-group">
-                    <label htmlFor="shop-name">Shop Name</label>
-                    <input
-                      type="text"
-                      id="shop-name"
-                      name="shop-name"
-                      placeholder="Enter your shop name"
-                      value={formData.shopName}
-                      onChange={(e) => setFormData({ ...formData, shopName: e.target.value })}
-                      className={errors.shopName ? 'error' : ''}
-                    />
-                    {errors.shopName && <div className="error-message">{errors.shopName}</div>}
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="shop-address">Shop Address</label>
-                    <input
-                      type="text"
-                      id="shop-address"
-                      name="shop-address"
-                      placeholder="Enter your shop address"
-                      value={formData.shopAddress}
-                      onChange={(e) => setFormData({ ...formData, shopAddress: e.target.value })}
-                      className={errors.shopAddress ? 'error' : ''}
-                    />
-                    {errors.shopAddress && <div className="error-message">{errors.shopAddress}</div>}
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="experience">Years of Experience</label>
-                    <input
-                      type="number"
-                      id="experience"
-                      name="experience"
-                      min="0"
-                      placeholder="Years of experience"
-                      value={formData.experience}
-                      onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
               
               <div className="form-group checkbox">
                 <input type="checkbox" id="terms" name="terms" required />

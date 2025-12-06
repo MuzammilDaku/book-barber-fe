@@ -1272,6 +1272,41 @@ footer {
     padding: 0 15px;
 }
 
+.pagination button.pagination-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    transition: var(--transition);
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+}
+
+.pagination button.pagination-btn:hover:not(:disabled) {
+    background-color: var(--light-bg);
+}
+
+.pagination button.pagination-btn.active {
+    background-color: var(--accent-color);
+    color: var(--white);
+    border-color: var(--accent-color);
+}
+
+.pagination button.pagination-btn.next {
+    width: auto;
+    padding: 0 15px;
+}
+
+.pagination button.pagination-btn:disabled {
+    cursor: not-allowed;
+}
+
 /* Booking Page */
 .booking-section {
     padding: 60px 20px;

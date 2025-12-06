@@ -3,10 +3,19 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { authClient } from '@/lib/auth-client';
+import { useUserStore } from '@/store/user';
+import toast from 'react-hot-toast';
 
 export default function BarbersPage() {
+  const router = useRouter();
+  const { user } = useUserStore();
+  const { data: session } = authClient.useSession();
   const [viewType, setViewType] = useState<'grid' | 'map'>('grid');
   const [filters, setFilters] = useState({
     location: '',
@@ -16,13 +25,85 @@ export default function BarbersPage() {
   });
   const [sortBy, setSortBy] = useState('rating');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const handleSortChange = (value: string) => {
+    setSortBy(value);
+    setCurrentPage(1); // Reset to first page when sort changes
   };
 
   const handleSearch = () => {
-    console.log('Searching for:', searchQuery);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Fetch barbers from database with filters and pagination
+  const barbersData = useQuery(api.functions.barbers.queries.listBarbers, {
+    searchQuery: searchQuery || undefined,
+    location: filters.location || undefined,
+    service: filters.service || undefined,
+    rating: filters.rating ? parseFloat(filters.rating) : undefined,
+    availability: filters.availability || undefined,
+    sortBy: sortBy,
+    page: currentPage,
+    pageSize: 12,
+  });
+
+  const barbers = barbersData?.barbers || [];
+  const totalPages = barbersData?.totalPages || 0;
+  const total = barbersData?.total || 0;
+
+  // Helper function to render stars
+  const renderStars = (experience: number) => {
+    // Use experience as a proxy for rating (convert to 0-5 scale)
+    const rating = Math.min(5, Math.max(0, experience / 100));
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+    return (
+      <div className="stars">
+        {Array.from({ length: fullStars }).map((_, i) => (
+          <i key={i} className="fas fa-star"></i>
+        ))}
+        {hasHalfStar && <i className="fas fa-star-half-alt"></i>}
+        {Array.from({ length: emptyStars }).map((_, i) => (
+          <i key={i} className="far fa-star"></i>
+        ))}
+      </div>
+    );
+  };
+
+  // Get minimum price from active services
+  const getMinPrice = (services: Array<{ price: number; isActive: boolean }>) => {
+    const activeServices = services.filter(s => s.isActive);
+    if (activeServices.length === 0) return 0;
+    return Math.min(...activeServices.map(s => s.price));
+  };
+
+  // Handle book now click
+  const handleBookNow = (barberId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    // Check if user is authenticated
+    if (!session || !user) {
+      toast.error('Please login to book an appointment');
+      router.push('/login');
+      return;
+    }
+
+    // Check if user is a barber
+    if (user.userType === 'barber') {
+      toast.error('Barbers cannot book appointments');
+      return;
+    }
+
+    // Redirect to booking page with barber ID
+    router.push(`/booking?barber=${barberId}`);
   };
 
   const initMap = () => {
@@ -145,14 +226,14 @@ export default function BarbersPage() {
       <section className="barbers-listing">
         <div className="container">
           <div className="result-info">
-            <h3>12 Barbers Found</h3>
+            <h3>{total} Barber{total !== 1 ? 's' : ''} Found</h3>
             <div className="sort-by">
               <label htmlFor="sort">Sort by:</label>
               <select
                 id="sort"
                 name="sort"
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => handleSortChange(e.target.value)}
               >
                 <option value="rating">Top Rated</option>
                 <option value="distance">Nearest</option>
@@ -162,127 +243,121 @@ export default function BarbersPage() {
             </div>
           </div>
           <div className="barbers-grid" style={{ display: viewType === 'grid' ? 'grid' : 'none' }}>
-            {/* Barber Card 1 */}
-            <div className="barber-card">
-              <div className="barber-badge featured">Featured</div>
-              <div className="barber-image">
-                <Image src="/images/image1.jpg" alt="Barber Shop" width={350} height={200} />
+            {barbers.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem' }}>
+                <p>No barbers found. Try adjusting your filters.</p>
               </div>
-              <div className="barber-info">
-                <div className="barber-header">
-                  <h3>Royal Cuts Barbershop</h3>
-                  <div className="barber-rating">
-                    <span>4.8</span>
-                    <div className="stars">
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star-half-alt"></i>
-                    </div>
-                    <span>(124 reviews)</span>
-                  </div>
-                </div>
-                <p className="barber-location"><i className="fas fa-map-marker-alt"></i> F-8 Markaz, Islamabad</p>
-                <div className="barber-services">
-                  <span>Haircut</span>
-                  <span>Beard Trim</span>
-                  <span>Facial</span>
-                  <span>+3 more</span>
-                </div>
-                <div className="barber-footer">
-                  <div className="price-range">
-                    <span>Starting from</span>
-                    <strong>Rs. 500</strong>
-                  </div>
-                  <Link href="/booking" className="btn btn-primary">Book Now</Link>
-                </div>
-              </div>
-            </div>
+            ) : (
+              barbers.map((barber) => {
+                const activeServices = barber.services.filter(s => s.isActive);
+                const displayedServices = activeServices.slice(0, 3);
+                const remainingServices = activeServices.length - 3;
+                const minPrice = getMinPrice(barber.services);
+                const rating = Math.min(5, Math.max(0, barber.experience / 100));
 
-            {/* Barber Card 2 */}
-            <div className="barber-card">
-              <div className="barber-image">
-                <Image src="/images/image1.jpg" alt="Barber Shop" width={350} height={200} />
-              </div>
-              <div className="barber-info">
-                <div className="barber-header">
-                  <h3>Classic Men's Parlor</h3>
-                  <div className="barber-rating">
-                    <span>4.5</span>
-                    <div className="stars">
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star-half-alt"></i>
+                return (
+                  <div key={barber._id} className="barber-card">
+                    {barber.experience > 500 && (
+                      <div className="barber-badge featured">Featured</div>
+                    )}
+                    {barber.experience < 100 && (
+                      <div className="barber-badge new">New</div>
+                    )}
+                    <div className="barber-image">
+                      <Image
+                        src={barber.image || "/images/image1.jpg"}
+                        alt={barber.name}
+                        width={350}
+                        height={200}
+                      />
                     </div>
-                    <span>(98 reviews)</span>
-                  </div>
-                </div>
-                <p className="barber-location"><i className="fas fa-map-marker-alt"></i> Blue Area, Islamabad</p>
-                <div className="barber-services">
-                  <span>Haircut</span>
-                  <span>Beard Trim</span>
-                  <span>Shave</span>
-                  <span>+2 more</span>
-                </div>
-                <div className="barber-footer">
-                  <div className="price-range">
-                    <span>Starting from</span>
-                    <strong>Rs. 600</strong>
-                  </div>
-                  <Link href="/booking" className="btn btn-primary">Book Now</Link>
-                </div>
-              </div>
-            </div>
-
-            {/* Barber Card 3 */}
-            <div className="barber-card">
-              <div className="barber-badge new">New</div>
-              <div className="barber-image">
-                <Image src="/images/image1.jpg" alt="Barber Shop" width={350} height={200} />
-              </div>
-              <div className="barber-info">
-                <div className="barber-header">
-                  <h3>Modern Cuts Studio</h3>
-                  <div className="barber-rating">
-                    <span>4.2</span>
-                    <div className="stars">
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star"></i>
-                      <i className="fas fa-star"></i>
-                      <i className="far fa-star"></i>
+                    <div className="barber-info">
+                      <div className="barber-header">
+                        <h3>{barber.name}</h3>
+                        <div className="barber-rating">
+                          <span>{rating.toFixed(1)}</span>
+                          {renderStars(barber.experience)}
+                          <span>({barber.experience} exp.)</span>
+                        </div>
+                      </div>
+                      <p className="barber-location">
+                        <i className="fas fa-map-marker-alt"></i> {barber.address}
+                      </p>
+                      <div className="barber-services">
+                        {displayedServices.map((service, idx) => (
+                          <span key={idx}>{service.name}</span>
+                        ))}
+                        {remainingServices > 0 && (
+                          <span>+{remainingServices} more</span>
+                        )}
+                      </div>
+                      <div className="barber-footer">
+                        <div className="price-range">
+                          <span>Starting from</span>
+                          <strong>Rs. {minPrice}</strong>
+                        </div>
+                        <button 
+                          onClick={(e) => handleBookNow(barber._id, e)}
+                          className="btn btn-primary"
+                        >
+                          Book Now
+                        </button>
+                      </div>
                     </div>
-                    <span>(46 reviews)</span>
                   </div>
-                </div>
-                <p className="barber-location"><i className="fas fa-map-marker-alt"></i> DHA Phase 2, Islamabad</p>
-                <div className="barber-services">
-                  <span>Premium Haircut</span>
-                  <span>Beard Styling</span>
-                  <span>Hair Color</span>
-                  <span>+4 more</span>
-                </div>
-                <div className="barber-footer">
-                  <div className="price-range">
-                    <span>Starting from</span>
-                    <strong>Rs. 800</strong>
-                  </div>
-                  <Link href="/booking" className="btn btn-primary">Book Now</Link>
-                </div>
-              </div>
-            </div>
+                );
+              })
+            )}
           </div>
           
           {/* Pagination */}
-          <div className="pagination">
-            <a href="#" className="active">1</a>
-            <a href="#">2</a>
-            <a href="#">3</a>
-            <a href="#" className="next">Next <i className="fas fa-chevron-right"></i></a>
-          </div>
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="pagination-btn"
+                style={{ 
+                  opacity: currentPage === 1 ? 0.5 : 1,
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <i className="fas fa-chevron-left"></i> Prev
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`pagination-btn ${currentPage === pageNum ? 'active' : ''}`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="pagination-btn next"
+                style={{ 
+                  opacity: currentPage === totalPages ? 0.5 : 1,
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Next <i className="fas fa-chevron-right"></i>
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
