@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
@@ -31,6 +32,7 @@ const PREDEFINED_SERVICES = [
 ];
 
 export default function BarberDashboard() {
+  const router = useRouter();
   const { data: session } = authClient.useSession();
   const user = useQuery(
     api.functions.users.queries.getUser,
@@ -386,7 +388,17 @@ export default function BarberDashboard() {
           <div>
             {/* Upcoming Appointments */}
             <div style={{ backgroundColor: "var(--white)", padding: "2rem", borderRadius: "12px", boxShadow: "var(--shadow)", marginBottom: "2rem" }}>
-              <h3 style={{ marginBottom: "1.5rem", fontSize: "1.5rem" }}>Upcoming Appointments</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+                <h3 style={{ margin: 0, fontSize: "1.5rem" }}>Upcoming Appointments</h3>
+                <button
+                  onClick={() => router.push("/barber/appointments")}
+                  className="btn btn-primary"
+                  style={{ padding: "0.5rem 1rem", fontSize: "0.9rem" }}
+                >
+                  <i className="fas fa-calendar-alt" style={{ marginRight: "0.5rem" }}></i>
+                  View All Appointments
+                </button>
+              </div>
               {bookings === undefined ? (
                 <p style={{ color: "var(--secondary-color)" }}>Loading...</p>
               ) : bookings.length === 0 ? (

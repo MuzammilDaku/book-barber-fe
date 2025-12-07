@@ -90,9 +90,12 @@ export const getBookingsByCustomer = query({
       .order("desc")
       .collect();
 
+    // Filter out cancelled bookings
+    const activeBookings = bookings.filter((booking) => booking.status !== "cancelled");
+
     // Enrich with shop details
     const enrichedBookings = await Promise.all(
-      bookings.map(async (booking) => {
+      activeBookings.map(async (booking) => {
         const shop = await ctx.db.get(booking.shopId);
         return {
           ...booking,
@@ -122,9 +125,12 @@ export const getBookingsByShop = query({
       .order("desc")
       .collect();
 
+    // Filter out cancelled bookings
+    const activeBookings = bookings.filter((booking) => booking.status !== "cancelled");
+
     // Enrich with customer details
     const enrichedBookings = await Promise.all(
-      bookings.map(async (booking) => {
+      activeBookings.map(async (booking) => {
         const customer = await ctx.db.get(booking.customerId);
         return {
           ...booking,

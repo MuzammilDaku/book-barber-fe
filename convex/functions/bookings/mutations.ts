@@ -87,10 +87,31 @@ export const updateBookingStatus = mutation({
       throw new Error("Booking not found");
     }
 
+    // If cancelling, delete the booking instead of updating status
+    if (args.status === "cancelled") {
+      await ctx.db.delete(args.bookingId);
+      return args.bookingId;
+    }
+
     await ctx.db.patch(args.bookingId, {
       status: args.status,
     });
 
+    return args.bookingId;
+  },
+});
+
+export const deleteBooking = mutation({
+  args: {
+    bookingId: v.id("bookings"),
+  },
+  handler: async (ctx, args) => {
+    const booking = await ctx.db.get(args.bookingId);
+    if (!booking) {
+      throw new Error("Booking not found");
+    }
+
+    await ctx.db.delete(args.bookingId);
     return args.bookingId;
   },
 });

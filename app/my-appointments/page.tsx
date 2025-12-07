@@ -24,16 +24,6 @@ export default function MyAppointmentsPage() {
 
   const updateBookingStatus = useMutation(api.functions.bookings.mutations.updateBookingStatus);
 
-  // Redirect if not logged in or not a customer
-  if (session && user && user.userType !== 'customer') {
-    router.push('/');
-    return null;
-  }
-
-  if (!session || !user) {
-    router.push('/login');
-    return null;
-  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -80,7 +70,7 @@ export default function MyAppointmentsPage() {
   };
 
   const handleCancelBooking = async (bookingId: any) => {
-    if (!confirm('Are you sure you want to cancel this booking?')) {
+    if (!confirm('Are you sure you want to cancel this booking? It will be permanently removed.')) {
       return;
     }
 
@@ -89,7 +79,7 @@ export default function MyAppointmentsPage() {
         bookingId,
         status: 'cancelled',
       });
-      toast.success('Booking cancelled successfully');
+      toast.success('Booking cancelled and removed successfully');
     } catch (error: any) {
       toast.error(error.message || 'Failed to cancel booking');
     }
