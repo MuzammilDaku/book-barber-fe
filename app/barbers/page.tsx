@@ -147,6 +147,8 @@ export default function BarbersPage() {
                   <option value="rawalpindi">Rawalpindi</option>
                   <option value="lahore">Lahore</option>
                   <option value="karachi">Karachi</option>
+                  <option value="multan">Multan</option>
+
                 </select>
               </div>
               <div className="filter">

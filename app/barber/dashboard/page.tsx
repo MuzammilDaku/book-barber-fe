@@ -10,6 +10,28 @@ import Footer from "@/components/Footer";
 import BarberOnboarding from "@/components/BarberOnboarding";
 import toast from "react-hot-toast";
 
+// Add CSS for animations
+const styleSheet = `
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
 const DAYS_OF_WEEK = [
   { value: 0, label: "Sunday" },
   { value: 1, label: "Monday" },
@@ -59,6 +81,14 @@ export default function BarberDashboard() {
     api.functions.bookings.queries.getBookingsByShop,
     shop?._id ? { shopId: shop._id } : "skip"
   );
+
+  // Calculate appointment stats
+  const appointmentStats = {
+    total: bookings?.length || 0,
+    completed: bookings?.filter(b => b.status === 'completed').length || 0,
+    confirmed: bookings?.filter(b => b.status === 'confirmed').length || 0,
+    pending: bookings?.filter(b => b.status === 'pending').length || 0,
+  };
 
   const [activeTab, setActiveTab] = useState<"overview" | "services" | "hours" | "shop">("overview");
   const [showAddService, setShowAddService] = useState(false);
@@ -279,66 +309,330 @@ export default function BarberDashboard() {
   // Main Dashboard
   return (
     <>
+      <style dangerouslySetInnerHTML={{ __html: styleSheet }} />
       <Header />
       <div className="container" style={{ padding: "2rem 1rem", maxWidth: "1400px" }}>
         {/* Welcome Header */}
         <div
           style={{
-            background: "linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%)",
-            borderRadius: "12px",
-            padding: "3rem 2rem",
-            marginBottom: "2rem",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
+            borderRadius: "24px",
+            padding: "4rem 3rem",
+            marginBottom: "3rem",
             color: "white",
+            position: "relative",
+            overflow: "hidden",
+            boxShadow: "0 20px 60px rgba(102, 126, 234, 0.4)",
           }}
         >
-          <h1 style={{ margin: 0, marginBottom: "0.5rem", fontSize: "2.5rem" }}>
-            Welcome back, {user.fullName}! 👋
-          </h1>
-          <p style={{ margin: 0, opacity: 0.9, fontSize: "1.1rem" }}>
-            {shop?.name || "Your Barber Shop"} • {services?.length || 0} Services • Manage your business
-          </p>
+          <div style={{
+            position: "absolute",
+            top: "-50%",
+            right: "-10%",
+            width: "400px",
+            height: "400px",
+            background: "radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)",
+            borderRadius: "50%",
+            animation: "float 6s ease-in-out infinite",
+          }} />
+          <div style={{
+            position: "absolute",
+            bottom: "-30%",
+            left: "-5%",
+            width: "300px",
+            height: "300px",
+            background: "radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)",
+            borderRadius: "50%",
+            animation: "float 8s ease-in-out infinite reverse",
+          }} />
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <h1 style={{ 
+              margin: 0, 
+              marginBottom: "1rem", 
+              fontSize: "3.5rem",
+              fontWeight: 700,
+              background: "linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              textShadow: "0 2px 20px rgba(0,0,0,0.1)",
+            }}>
+              Welcome back, {user.fullName}! 👋
+            </h1>
+            <p style={{ 
+              margin: 0, 
+              opacity: 0.95, 
+              fontSize: "1.3rem",
+              fontWeight: 500,
+              textShadow: "0 2px 10px rgba(0,0,0,0.1)",
+            }}>
+              {shop?.name || "Your Barber Shop"} • {services?.length || 0} Services • Manage your business
+            </p>
+          </div>
         </div>
 
         {/* Stats Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
-          <div style={{ backgroundColor: "var(--white)", padding: "1.5rem", borderRadius: "12px", boxShadow: "var(--shadow)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-              <div style={{ width: "50px", height: "50px", borderRadius: "12px", backgroundColor: "#E3F2FD", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <i className="fas fa-list-alt" style={{ fontSize: "1.5rem", color: "#2196F3" }}></i>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "2rem", marginBottom: "3rem" }}>
+          <div style={{ 
+            background: "linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)",
+            backdropFilter: "blur(10px)",
+            padding: "2rem",
+            borderRadius: "20px",
+            border: "1px solid rgba(99, 102, 241, 0.2)",
+            boxShadow: "0 8px 32px rgba(99, 102, 241, 0.15)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            cursor: "pointer",
+            position: "relative",
+            overflow: "hidden",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-8px) scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 12px 40px rgba(99, 102, 241, 0.25)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0) scale(1)";
+            e.currentTarget.style.boxShadow = "0 8px 32px rgba(99, 102, 241, 0.15)";
+          }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+              <div style={{ 
+                width: "70px", 
+                height: "70px", 
+                borderRadius: "18px", 
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                boxShadow: "0 8px 20px rgba(102, 126, 234, 0.4)",
+              }}>
+                <i className="fas fa-list-alt" style={{ fontSize: "2rem", color: "#ffffff" }}></i>
               </div>
               <div>
-                <div style={{ fontSize: "2rem", fontWeight: "700", color: "var(--primary-color)" }}>
+                <div style={{ fontSize: "2.5rem", fontWeight: "800", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
                   {services?.length || 0}
                 </div>
-                <div style={{ fontSize: "0.9rem", color: "var(--secondary-color)" }}>Active Services</div>
+                <div style={{ fontSize: "1rem", color: "var(--secondary-color)", fontWeight: 500, marginTop: "0.25rem" }}>Active Services</div>
               </div>
             </div>
           </div>
 
-          <div style={{ backgroundColor: "var(--white)", padding: "1.5rem", borderRadius: "12px", boxShadow: "var(--shadow)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-              <div style={{ width: "50px", height: "50px", borderRadius: "12px", backgroundColor: "#E8F5E9", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <i className="fas fa-clock" style={{ fontSize: "1.5rem", color: "#4CAF50" }}></i>
+          <div style={{ 
+            background: "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)",
+            backdropFilter: "blur(10px)",
+            padding: "2rem",
+            borderRadius: "20px",
+            border: "1px solid rgba(16, 185, 129, 0.2)",
+            boxShadow: "0 8px 32px rgba(16, 185, 129, 0.15)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            cursor: "pointer",
+            position: "relative",
+            overflow: "hidden",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-8px) scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 12px 40px rgba(16, 185, 129, 0.25)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0) scale(1)";
+            e.currentTarget.style.boxShadow = "0 8px 32px rgba(16, 185, 129, 0.15)";
+          }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+              <div style={{ 
+                width: "70px", 
+                height: "70px", 
+                borderRadius: "18px", 
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                boxShadow: "0 8px 20px rgba(16, 185, 129, 0.4)",
+              }}>
+                <i className="fas fa-clock" style={{ fontSize: "2rem", color: "#ffffff" }}></i>
               </div>
               <div>
-                <div style={{ fontSize: "2rem", fontWeight: "700", color: "var(--primary-color)" }}>
+                <div style={{ fontSize: "2.5rem", fontWeight: "800", background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
                   {openingHours?.filter((h) => !h.isClosed).length || 0}
                 </div>
-                <div style={{ fontSize: "0.9rem", color: "var(--secondary-color)" }}>Working Days</div>
+                <div style={{ fontSize: "1rem", color: "var(--secondary-color)", fontWeight: 500, marginTop: "0.25rem" }}>Working Days</div>
               </div>
             </div>
           </div>
 
-          <div style={{ backgroundColor: "var(--white)", padding: "1.5rem", borderRadius: "12px", boxShadow: "var(--shadow)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-              <div style={{ width: "50px", height: "50px", borderRadius: "12px", backgroundColor: "#FFF3E0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <i className="fas fa-star" style={{ fontSize: "1.5rem", color: "#FF9800" }}></i>
+          <div style={{ 
+            background: "linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%)",
+            backdropFilter: "blur(10px)",
+            padding: "2rem",
+            borderRadius: "20px",
+            border: "1px solid rgba(245, 158, 11, 0.2)",
+            boxShadow: "0 8px 32px rgba(245, 158, 11, 0.15)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            cursor: "pointer",
+            position: "relative",
+            overflow: "hidden",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-8px) scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 12px 40px rgba(245, 158, 11, 0.25)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0) scale(1)";
+            e.currentTarget.style.boxShadow = "0 8px 32px rgba(245, 158, 11, 0.15)";
+          }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+              <div style={{ 
+                width: "70px", 
+                height: "70px", 
+                borderRadius: "18px", 
+                background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                boxShadow: "0 8px 20px rgba(245, 158, 11, 0.4)",
+              }}>
+                <i className="fas fa-star" style={{ fontSize: "2rem", color: "#ffffff" }}></i>
               </div>
               <div>
-                <div style={{ fontSize: "2rem", fontWeight: "700", color: "var(--primary-color)" }}>
+                <div style={{ fontSize: "2.5rem", fontWeight: "800", background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
                   {shop?.experience || 0}
                 </div>
-                <div style={{ fontSize: "0.9rem", color: "var(--secondary-color)" }}>Years Experience</div>
+                <div style={{ fontSize: "1rem", color: "var(--secondary-color)", fontWeight: 500, marginTop: "0.25rem" }}>Years Experience</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Completed Appointments Stat */}
+          <div style={{ 
+            background: "linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(22, 163, 74, 0.1) 100%)",
+            backdropFilter: "blur(10px)",
+            padding: "2rem",
+            borderRadius: "20px",
+            border: "1px solid rgba(34, 197, 94, 0.2)",
+            boxShadow: "0 8px 32px rgba(34, 197, 94, 0.15)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            cursor: "pointer",
+            position: "relative",
+            overflow: "hidden",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-8px) scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 12px 40px rgba(34, 197, 94, 0.25)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0) scale(1)";
+            e.currentTarget.style.boxShadow = "0 8px 32px rgba(34, 197, 94, 0.15)";
+          }}
+          onClick={() => router.push("/barber/appointments")}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+              <div style={{ 
+                width: "70px", 
+                height: "70px", 
+                borderRadius: "18px", 
+                background: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                boxShadow: "0 8px 20px rgba(34, 197, 94, 0.4)",
+              }}>
+                <i className="fas fa-check-circle" style={{ fontSize: "2rem", color: "#ffffff" }}></i>
+              </div>
+              <div>
+                <div style={{ fontSize: "2.5rem", fontWeight: "800", background: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+                  {appointmentStats.completed}
+                </div>
+                <div style={{ fontSize: "1rem", color: "var(--secondary-color)", fontWeight: 500, marginTop: "0.25rem" }}>Completed</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Total Appointments Stat */}
+          <div style={{ 
+            background: "linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)",
+            backdropFilter: "blur(10px)",
+            padding: "2rem",
+            borderRadius: "20px",
+            border: "1px solid rgba(59, 130, 246, 0.2)",
+            boxShadow: "0 8px 32px rgba(59, 130, 246, 0.15)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            cursor: "pointer",
+            position: "relative",
+            overflow: "hidden",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-8px) scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 12px 40px rgba(59, 130, 246, 0.25)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0) scale(1)";
+            e.currentTarget.style.boxShadow = "0 8px 32px rgba(59, 130, 246, 0.15)";
+          }}
+          onClick={() => router.push("/barber/appointments")}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+              <div style={{ 
+                width: "70px", 
+                height: "70px", 
+                borderRadius: "18px", 
+                background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                boxShadow: "0 8px 20px rgba(59, 130, 246, 0.4)",
+              }}>
+                <i className="fas fa-calendar-check" style={{ fontSize: "2rem", color: "#ffffff" }}></i>
+              </div>
+              <div>
+                <div style={{ fontSize: "2.5rem", fontWeight: "800", background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+                  {appointmentStats.total}
+                </div>
+                <div style={{ fontSize: "1rem", color: "var(--secondary-color)", fontWeight: 500, marginTop: "0.25rem" }}>Total Appointments</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Pending Appointments Stat */}
+          <div style={{ 
+            background: "linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.1) 100%)",
+            backdropFilter: "blur(10px)",
+            padding: "2rem",
+            borderRadius: "20px",
+            border: "1px solid rgba(251, 191, 36, 0.2)",
+            boxShadow: "0 8px 32px rgba(251, 191, 36, 0.15)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            cursor: "pointer",
+            position: "relative",
+            overflow: "hidden",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-8px) scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 12px 40px rgba(251, 191, 36, 0.25)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0) scale(1)";
+            e.currentTarget.style.boxShadow = "0 8px 32px rgba(251, 191, 36, 0.15)";
+          }}
+          onClick={() => router.push("/barber/appointments")}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+              <div style={{ 
+                width: "70px", 
+                height: "70px", 
+                borderRadius: "18px", 
+                background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                boxShadow: "0 8px 20px rgba(251, 191, 36, 0.4)",
+              }}>
+                <i className="fas fa-clock" style={{ fontSize: "2rem", color: "#ffffff" }}></i>
+              </div>
+              <div>
+                <div style={{ fontSize: "2.5rem", fontWeight: "800", background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+                  {appointmentStats.pending}
+                </div>
+                <div style={{ fontSize: "1rem", color: "var(--secondary-color)", fontWeight: 500, marginTop: "0.25rem" }}>Pending</div>
               </div>
             </div>
           </div>
@@ -348,10 +642,15 @@ export default function BarberDashboard() {
         <div
           style={{
             display: "flex",
-            gap: "0.5rem",
-            borderBottom: "2px solid var(--border-color)",
+            gap: "0.75rem",
+            background: "rgba(255, 255, 255, 0.7)",
+            backdropFilter: "blur(10px)",
+            padding: "0.5rem",
+            borderRadius: "16px",
             marginBottom: "2rem",
             flexWrap: "wrap",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
+            border: "1px solid rgba(99, 102, 241, 0.1)",
           }}
         >
           {[
@@ -364,18 +663,34 @@ export default function BarberDashboard() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               style={{
-                padding: "1rem 1.5rem",
+                padding: "1rem 1.75rem",
                 border: "none",
-                background: "transparent",
-                borderBottom: activeTab === tab.id ? "3px solid var(--accent-color)" : "3px solid transparent",
-                color: activeTab === tab.id ? "var(--accent-color)" : "var(--secondary-color)",
-                fontWeight: activeTab === tab.id ? "600" : "400",
+                background: activeTab === tab.id 
+                  ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+                  : "transparent",
+                borderRadius: "12px",
+                color: activeTab === tab.id ? "#ffffff" : "var(--secondary-color)",
+                fontWeight: activeTab === tab.id ? "600" : "500",
                 cursor: "pointer",
                 fontSize: "1rem",
-                transition: "all 0.3s",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 display: "flex",
                 alignItems: "center",
-                gap: "0.5rem",
+                gap: "0.75rem",
+                boxShadow: activeTab === tab.id ? "0 4px 15px rgba(102, 126, 234, 0.4)" : "none",
+                transform: activeTab === tab.id ? "translateY(-2px)" : "translateY(0)",
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== tab.id) {
+                  e.currentTarget.style.background = "rgba(99, 102, 241, 0.1)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== tab.id) {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }
               }}
             >
               <i className={tab.icon}></i>
