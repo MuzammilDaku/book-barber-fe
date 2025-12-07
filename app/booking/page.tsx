@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Header from '@/components/Header';
@@ -20,7 +20,7 @@ interface Service {
   _index: number;
 }
 
-export default function BookingPage() {
+function BookingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const barberShopId = searchParams.get('barber');
@@ -513,5 +513,25 @@ export default function BookingPage() {
 
       <Footer />
     </>
+  );
+}
+
+export default function BookingPage() {
+  return (
+    <Suspense fallback={
+      <>
+        <Header />
+        <section className="booking-section">
+          <div className="container">
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <p>Loading...</p>
+            </div>
+          </div>
+        </section>
+        <Footer />
+      </>
+    }>
+      <BookingPageContent />
+    </Suspense>
   );
 }
