@@ -111,6 +111,23 @@ export const listBarbers = query({
     for (const shop of shops) {
       const user = await ctx.db.get(shop.userId);
       if (user && user.userType === "barber" && shop.onboardingComplete) {
+        // Calculate average rating from completed bookings
+        const completedBookings = await ctx.db
+          .query("bookings")
+          .withIndex("by_shopId", (q) => q.eq("shopId", shop._id))
+          .filter((q) => q.eq(q.field("status"), "completed"))
+          .collect();
+
+        const ratings = completedBookings
+          .map((b) => b.rating)
+          .filter((r): r is number => r !== undefined && r !== null);
+
+        const averageRating = ratings.length > 0
+          ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length
+          : 0;
+
+        const totalRatings = ratings.length;
+
         barberShops.push({
           ...shop,
           user: {
@@ -118,6 +135,8 @@ export const listBarbers = query({
             email: user.email,
             phone: user.phone,
           },
+          averageRating,
+          totalRatings,
         });
       }
     }
@@ -156,12 +175,9 @@ export const listBarbers = query({
       );
     }
 
-    // Filter by rating (we'll use a placeholder since rating isn't in schema yet)
-    // For now, we'll skip this filter or use experience as a proxy
+    // Filter by rating
     if (args.rating) {
-      // Placeholder: filter by experience >= rating * 100
-      // This can be updated when ratings are added to schema
-      filtered = filtered.filter((shop) => shop.experience >= (args.rating! * 100));
+      filtered = filtered.filter((shop) => shop.averageRating >= args.rating!);
     }
 
     // Filter by availability
@@ -196,8 +212,13 @@ export const listBarbers = query({
     let sorted = [...filtered];
     switch (args.sortBy) {
       case "rating":
-        // Sort by experience as proxy for rating
-        sorted.sort((a, b) => b.experience - a.experience);
+        // Sort by average rating (descending), then by total ratings
+        sorted.sort((a, b) => {
+          if (b.averageRating !== a.averageRating) {
+            return b.averageRating - a.averageRating;
+          }
+          return b.totalRatings - a.totalRatings;
+        });
         break;
       case "price-low":
         sorted.sort((a, b) => {
@@ -229,8 +250,13 @@ export const listBarbers = query({
         // For now, keep original order (can be enhanced with location data)
         break;
       default:
-        // Default: sort by experience (rating proxy)
-        sorted.sort((a, b) => b.experience - a.experience);
+        // Default: sort by average rating
+        sorted.sort((a, b) => {
+          if (b.averageRating !== a.averageRating) {
+            return b.averageRating - a.averageRating;
+          }
+          return b.totalRatings - a.totalRatings;
+        });
     }
 
     // Apply pagination

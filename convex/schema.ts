@@ -58,6 +58,7 @@ export default defineSchema({
     totalPrice: v.number(),
     totalDuration: v.number(), // in minutes
     notes: v.optional(v.string()),
+    rating: v.optional(v.number()), // Rating from 1 to 5
   })
     .index("by_customerId", ["customerId"])
     .index("by_shopId", ["shopId"])

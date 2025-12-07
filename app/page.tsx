@@ -19,7 +19,7 @@ export default function Home() {
           <h1>Your Perfect Haircut Is Just A Click Away</h1>
           <p>Book with top barbers near you and get styled your way.</p>
           <div className="hero-buttons">
-            <Link href="/booking" className="btn hero-btn">Book Now</Link>
+            <Link href="/barbers" className="btn hero-btn">Book Now</Link>
             <Link href="/barbers" className="btn hero-btn-outline">Browse Barbers</Link>
           </div>
         </div>

@@ -90,6 +90,7 @@ export default function BarberDashboard() {
   const deleteService = useMutation(api.functions.barbers.mutations.deleteService);
   const setAllOpeningHours = useMutation(api.functions.barbers.mutations.setAllOpeningHours);
   const updateShop = useMutation(api.functions.barbers.mutations.updateShop);
+  const updateBookingStatus = useMutation(api.functions.bookings.mutations.updateBookingStatus);
 
   // Initialize forms from fetched data
   useEffect(() => {
@@ -493,13 +494,57 @@ export default function BarberDashboard() {
                             </p>
                           </div>
 
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <strong>Total: Rs. {booking.totalPrice}</strong>
-                            {booking.notes && (
-                              <span style={{ fontSize: "0.875rem", color: "var(--secondary-color)" }}>
-                                <i className="fas fa-sticky-note"></i> Has notes
-                              </span>
-                            )}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border-color)" }}>
+                            <div>
+                              <strong>Total: Rs. {booking.totalPrice}</strong>
+                              {booking.notes && (
+                                <span style={{ fontSize: "0.875rem", color: "var(--secondary-color)", marginLeft: "1rem" }}>
+                                  <i className="fas fa-sticky-note"></i> Has notes
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", gap: "0.5rem" }}>
+                              {booking.status === 'pending' && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await updateBookingStatus({
+                                        bookingId: booking._id,
+                                        status: 'confirmed',
+                                      });
+                                      toast.success('Appointment confirmed!');
+                                    } catch (error: any) {
+                                      toast.error(error.message || 'Failed to confirm appointment');
+                                    }
+                                  }}
+                                  className="btn btn-primary"
+                                  style={{ padding: "0.5rem 1rem", fontSize: "0.875rem" }}
+                                >
+                                  <i className="fas fa-check"></i> Confirm
+                                </button>
+                              )}
+                              {booking.status === 'confirmed' && (
+                                <button
+                                  onClick={async () => {
+                                    if (confirm('Mark this appointment as completed?')) {
+                                      try {
+                                        await updateBookingStatus({
+                                          bookingId: booking._id,
+                                          status: 'completed',
+                                        });
+                                        toast.success('Appointment marked as completed!');
+                                      } catch (error: any) {
+                                        toast.error(error.message || 'Failed to update appointment');
+                                      }
+                                    }
+                                  }}
+                                  className="btn btn-primary"
+                                  style={{ padding: "0.5rem 1rem", fontSize: "0.875rem" }}
+                                >
+                                  <i className="fas fa-check-circle"></i> Mark Done
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );

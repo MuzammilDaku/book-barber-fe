@@ -58,9 +58,7 @@ export default function BarbersPage() {
   const total = barbersData?.total || 0;
 
   // Helper function to render stars
-  const renderStars = (experience: number) => {
-    // Use experience as a proxy for rating (convert to 0-5 scale)
-    const rating = Math.min(5, Math.max(0, experience / 100));
+  const renderStars = (rating: number, totalRatings: number = 0) => {
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating % 1 >= 0.5;
     const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
@@ -68,12 +66,17 @@ export default function BarbersPage() {
     return (
       <div className="stars">
         {Array.from({ length: fullStars }).map((_, i) => (
-          <i key={i} className="fas fa-star"></i>
+          <i key={i} className="fas fa-star" style={{ color: '#FFD700' }}></i>
         ))}
-        {hasHalfStar && <i className="fas fa-star-half-alt"></i>}
+        {hasHalfStar && <i className="fas fa-star-half-alt" style={{ color: '#FFD700' }}></i>}
         {Array.from({ length: emptyStars }).map((_, i) => (
-          <i key={i} className="far fa-star"></i>
+          <i key={i} className="far fa-star" style={{ color: '#ddd' }}></i>
         ))}
+        {totalRatings > 0 && (
+          <span style={{ marginLeft: '0.5rem', fontSize: '0.875rem', color: 'var(--secondary-color)' }}>
+            ({totalRatings} {totalRatings === 1 ? 'review' : 'reviews'})
+          </span>
+        )}
       </div>
     );
   };
@@ -253,7 +256,8 @@ export default function BarbersPage() {
                 const displayedServices = activeServices.slice(0, 3);
                 const remainingServices = activeServices.length - 3;
                 const minPrice = getMinPrice(barber.services);
-                const rating = Math.min(5, Math.max(0, barber.experience / 100));
+                const rating = (barber as any).averageRating || 0;
+                const totalRatings = (barber as any).totalRatings || 0;
 
                 return (
                   <div key={barber._id} className="barber-card">
@@ -275,9 +279,17 @@ export default function BarbersPage() {
                       <div className="barber-header">
                         <h3>{barber.name}</h3>
                         <div className="barber-rating">
-                          <span>{rating.toFixed(1)}</span>
-                          {renderStars(barber.experience)}
-                          <span>({barber.experience} exp.)</span>
+                          {rating > 0 ? (
+                            <>
+                              <span>{rating.toFixed(1)}</span>
+                              {renderStars(rating, totalRatings)}
+                            </>
+                          ) : (
+                            <>
+                              <span>No ratings yet</span>
+                              {renderStars(0, 0)}
+                            </>
+                          )}
                         </div>
                       </div>
                       <p className="barber-location">

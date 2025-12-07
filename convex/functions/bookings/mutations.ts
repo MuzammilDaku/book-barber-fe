@@ -116,3 +116,30 @@ export const deleteBooking = mutation({
   },
 });
 
+export const updateBookingRating = mutation({
+  args: {
+    bookingId: v.id("bookings"),
+    rating: v.number(), // Rating from 1 to 5
+  },
+  handler: async (ctx, args) => {
+    if (args.rating < 1 || args.rating > 5) {
+      throw new Error("Rating must be between 1 and 5");
+    }
+
+    const booking = await ctx.db.get(args.bookingId);
+    if (!booking) {
+      throw new Error("Booking not found");
+    }
+
+    if (booking.status !== "completed") {
+      throw new Error("Only completed appointments can be rated");
+    }
+
+    await ctx.db.patch(args.bookingId, {
+      rating: args.rating,
+    });
+
+    return args.bookingId;
+  },
+});
+

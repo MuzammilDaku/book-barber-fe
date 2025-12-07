@@ -404,41 +404,45 @@ export default function BarberAppointmentsPage() {
                         </button>
                       </>
                     )}
-                    {booking.status === 'confirmed' && isPast && (
-                      <button
-                        onClick={() => handleStatusUpdate(booking._id, 'completed')}
-                        className="btn btn-primary"
-                        style={{ 
-                          padding: '0.75rem 1.5rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                        }}
-                      >
-                        <i className="fas fa-check-circle"></i>
-                        Mark as Completed
-                      </button>
-                    )}
-                    {booking.status === 'confirmed' && isUpcoming && (
-                      <button
-                        onClick={() => {
-                          if (confirm('Are you sure you want to cancel this appointment?')) {
-                            handleStatusUpdate(booking._id, 'cancelled');
-                          }
-                        }}
-                        className="btn btn-outline"
-                        style={{ 
-                          padding: '0.75rem 1.5rem',
-                          color: 'var(--danger-color)',
-                          borderColor: 'var(--danger-color)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                        }}
-                      >
-                        <i className="fas fa-times"></i>
-                        Cancel Appointment
-                      </button>
+                    {booking.status === 'confirmed' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            if (confirm('Mark this appointment as completed?')) {
+                              handleStatusUpdate(booking._id, 'completed');
+                            }
+                          }}
+                          className="btn btn-primary"
+                          style={{ 
+                            padding: '0.75rem 1.5rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                          }}
+                        >
+                          <i className="fas fa-check-circle"></i>
+                          Mark as Completed
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('Are you sure you want to cancel this appointment?')) {
+                              handleStatusUpdate(booking._id, 'cancelled');
+                            }
+                          }}
+                          className="btn btn-outline"
+                          style={{ 
+                            padding: '0.75rem 1.5rem',
+                            color: 'var(--danger-color)',
+                            borderColor: 'var(--danger-color)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                          }}
+                        >
+                          <i className="fas fa-times"></i>
+                          Cancel Appointment
+                        </button>
+                      </>
                     )}
                     {booking.status === 'completed' && (
                       <p style={{ 

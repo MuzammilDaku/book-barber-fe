@@ -11,6 +11,60 @@ import { authClient } from '@/lib/auth-client';
 import { useUserStore } from '@/store/user';
 import toast from 'react-hot-toast';
 
+// Rating Stars Component
+function RatingStars({ booking, onRate }: { booking: any; onRate: (rating: number) => void }) {
+  const [hoveredRating, setHoveredRating] = useState(0);
+  const currentRating = booking.rating || 0;
+  const displayRating = hoveredRating || currentRating;
+  const isInteractive = booking.status === 'completed' && !booking.rating;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+      {[1, 2, 3, 4, 5].map((i) => {
+        const isFilled = i <= displayRating;
+        if (isInteractive) {
+          return (
+            <button
+              key={i}
+              onClick={() => onRate(i)}
+              onMouseEnter={() => setHoveredRating(i)}
+              onMouseLeave={() => setHoveredRating(0)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '0.25rem',
+                fontSize: '1.5rem',
+                color: isFilled ? '#FFD700' : '#ddd',
+                transition: 'all 0.2s',
+              }}
+            >
+              <i className={isFilled ? 'fas fa-star' : 'far fa-star'}></i>
+            </button>
+          );
+        } else {
+          return (
+            <span
+              key={i}
+              style={{
+                color: isFilled ? '#FFD700' : '#ddd',
+                fontSize: '1.2rem',
+              }}
+            >
+              <i className={isFilled ? 'fas fa-star' : 'far fa-star'}></i>
+            </span>
+          );
+        }
+      })}
+      {currentRating > 0 && (
+        <span style={{ marginLeft: '0.5rem', fontSize: '0.9rem', color: 'var(--secondary-color)' }}>
+          ({currentRating.toFixed(1)})
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function MyAppointmentsPage() {
   const router = useRouter();
   const { user } = useUserStore();
@@ -23,6 +77,7 @@ export default function MyAppointmentsPage() {
   );
 
   const updateBookingStatus = useMutation(api.functions.bookings.mutations.updateBookingStatus);
+  const updateBookingRating = useMutation(api.functions.bookings.mutations.updateBookingRating);
 
 
   const formatDate = (dateString: string) => {
@@ -84,6 +139,19 @@ export default function MyAppointmentsPage() {
       toast.error(error.message || 'Failed to cancel booking');
     }
   };
+
+  const handleRateBooking = async (bookingId: any, rating: number) => {
+    try {
+      await updateBookingRating({
+        bookingId,
+        rating,
+      });
+      toast.success('Thank you for your rating!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to submit rating');
+    }
+  };
+
 
   // Sort bookings: upcoming first, then by date
   const sortedBookings = bookings
@@ -188,19 +256,40 @@ export default function MyAppointmentsPage() {
                           </ul>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                           <div>
                             <strong>Total: Rs. {booking.totalPrice}</strong>
                           </div>
-                          {booking.status !== 'cancelled' && booking.status !== 'completed' && (
-                            <button
-                              className="btn btn-outline"
-                              onClick={() => handleCancelBooking(booking._id)}
-                              style={{ color: '#dc3545', borderColor: '#dc3545' }}
-                            >
-                              Cancel Booking
-                            </button>
-                          )}
+                          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                            {booking.status === 'completed' && (
+                              <div>
+                                {booking.rating ? (
+                                  <div>
+                                    <p style={{ margin: 0, marginBottom: '0.25rem', fontSize: '0.875rem', color: 'var(--secondary-color)' }}>
+                                      Your Rating:
+                                    </p>
+                                    <RatingStars booking={booking} onRate={(rating) => handleRateBooking(booking._id, rating)} />
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <p style={{ margin: 0, marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+                                      Rate this appointment:
+                                    </p>
+                                    <RatingStars booking={booking} onRate={(rating) => handleRateBooking(booking._id, rating)} />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {booking.status !== 'cancelled' && booking.status !== 'completed' && (
+                              <button
+                                className="btn btn-outline"
+                                onClick={() => handleCancelBooking(booking._id)}
+                                style={{ color: '#dc3545', borderColor: '#dc3545' }}
+                              >
+                                Cancel Booking
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {booking.notes && (
@@ -265,8 +354,29 @@ export default function MyAppointmentsPage() {
                           </ul>
                         </div>
 
-                        <div>
-                          <strong>Total: Rs. {booking.totalPrice}</strong>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                          <div>
+                            <strong>Total: Rs. {booking.totalPrice}</strong>
+                          </div>
+                          {booking.status === 'completed' && (
+                            <div>
+                              {booking.rating ? (
+                                <div>
+                                  <p style={{ margin: 0, marginBottom: '0.25rem', fontSize: '0.875rem', color: 'var(--secondary-color)' }}>
+                                    Your Rating:
+                                  </p>
+                                  <RatingStars booking={booking} onRate={(rating) => handleRateBooking(booking._id, rating)} />
+                                </div>
+                              ) : (
+                                <div>
+                                  <p style={{ margin: 0, marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+                                    Rate this appointment:
+                                  </p>
+                                  <RatingStars booking={booking} onRate={(rating) => handleRateBooking(booking._id, rating)} />
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
