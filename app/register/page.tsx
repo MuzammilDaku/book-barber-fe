@@ -226,18 +226,6 @@ export default function RegisterPage() {
               </button>
             </form>
             
-            <div className="social-login">
-              <p>Or register with</p>
-              <div className="social-buttons">
-                <button type="button" className="social-btn google">
-                  <i className="fab fa-google"></i> Google
-                </button>
-                <button type="button" className="social-btn facebook">
-                  <i className="fab fa-facebook-f"></i> Facebook
-                </button>
-              </div>
-            </div>
-            
             <div className="auth-switch">
               <p>Already have an account? <Link href="/login">Login</Link></p>
             </div>

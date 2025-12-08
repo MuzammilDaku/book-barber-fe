@@ -53,6 +53,8 @@ export default function BarbersPage() {
     pageSize: 12,
   });
 
+  console.log(barbersData);
+
   const barbers = barbersData?.barbers || [];
   const totalPages = barbersData?.totalPages || 0;
   const total = barbersData?.total || 0;

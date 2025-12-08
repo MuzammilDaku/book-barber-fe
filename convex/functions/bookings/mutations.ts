@@ -32,26 +32,154 @@ export const createBooking = mutation({
       throw new Error("Shop not found");
     }
 
+    // Check subscription limits for the barber
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_userId", (q) => q.eq("userId", shop.userId))
+      .first();
+
+    if (subscription && subscription.status === "active") {
+      // Check if booking date is within allowed range
+      const appointmentDate = new Date(args.appointmentDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const maxDays = subscription.planType === "starter" ? 7 : 30;
+      const maxDate = new Date(today);
+      maxDate.setDate(today.getDate() + maxDays);
+      
+      if (appointmentDate > maxDate) {
+        throw new Error(
+          `Your ${subscription.planType} plan allows bookings up to ${maxDays} days in advance. Please upgrade to Pro for longer booking periods.`
+        );
+      }
+
+      // Check monthly appointment limit
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      
+      const startDateStr = startOfMonth.toISOString().split('T')[0];
+      const endDateStr = endOfMonth.toISOString().split('T')[0];
+
+      // Get all bookings for this shop in the current month
+      const allBookings = await ctx.db
+        .query("bookings")
+        .withIndex("by_shopId", (q) => q.eq("shopId", args.shopId))
+        .collect();
+
+      // Filter bookings in current month and exclude cancelled
+      const monthlyBookings = allBookings.filter((booking) => {
+        const bookingDate = booking.appointmentDate;
+        return (
+          bookingDate >= startDateStr &&
+          bookingDate <= endDateStr &&
+          booking.status !== "cancelled"
+        );
+      });
+
+      const monthlyLimit = subscription.planType === "starter" ? 100 : 500;
+      
+      if (monthlyBookings.length >= monthlyLimit) {
+        throw new Error(
+          `You have reached your monthly appointment limit of ${monthlyLimit} appointments. ${subscription.planType === "starter" ? "Upgrade to Pro for 500 appointments per month." : "Please contact support for higher limits."}`
+        );
+      }
+    } else {
+      // No subscription - default to 7 days and 100 appointments
+      const appointmentDate = new Date(args.appointmentDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const maxDate = new Date(today);
+      maxDate.setDate(today.getDate() + 7);
+      
+      if (appointmentDate > maxDate) {
+        throw new Error(
+          "Bookings are limited to 7 days in advance. Subscribe to a plan to extend this limit."
+        );
+      }
+
+      // Check monthly appointment limit (default 100)
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      
+      const startDateStr = startOfMonth.toISOString().split('T')[0];
+      const endDateStr = endOfMonth.toISOString().split('T')[0];
+
+      const allBookings = await ctx.db
+        .query("bookings")
+        .withIndex("by_shopId", (q) => q.eq("shopId", args.shopId))
+        .collect();
+
+      const monthlyBookings = allBookings.filter((booking) => {
+        const bookingDate = booking.appointmentDate;
+        return (
+          bookingDate >= startDateStr &&
+          bookingDate <= endDateStr &&
+          booking.status !== "cancelled"
+        );
+      });
+
+      if (monthlyBookings.length >= 100) {
+        throw new Error(
+          "You have reached the monthly appointment limit of 100. Subscribe to a plan for higher limits (Starter: 100/month, Pro: 500/month)."
+        );
+      }
+    }
+
     // Calculate total price and duration
     const totalPrice = args.services.reduce((sum, service) => sum + service.price, 0);
     const totalDuration = args.services.reduce((sum, service) => sum + service.duration, 0);
 
-    // Check if time slot is available
-    const existingBooking = await ctx.db
+    // Parse appointment time
+    const [apptHour, apptMin] = args.appointmentTime.split(":").map(Number);
+    const appointmentStartMinutes = apptHour * 60 + apptMin;
+    const appointmentEndMinutes = appointmentStartMinutes + totalDuration;
+
+    // Get shop opening hours to check boundaries (shop already fetched above)
+    const requestedDate = new Date(args.appointmentDate);
+    const dayOfWeek = requestedDate.getDay();
+    const openingHours = shop.openingHours?.find((h) => h.dayOfWeek === dayOfWeek);
+    
+    if (!openingHours || openingHours.isClosed) {
+      throw new Error("Shop is closed on this day");
+    }
+
+    const [openHour, openMin] = openingHours.openingTime.split(":").map(Number);
+    const [closeHour, closeMin] = openingHours.closingTime.split(":").map(Number);
+    const openTimeMinutes = openHour * 60 + openMin;
+    const closeTimeMinutes = closeHour * 60 + closeMin;
+
+    // Check if appointment fits within opening hours
+    if (appointmentStartMinutes < openTimeMinutes || appointmentEndMinutes > closeTimeMinutes) {
+      throw new Error("Appointment time is outside shop opening hours");
+    }
+
+    // Check for overlapping bookings (considering duration)
+    const existingBookings = await ctx.db
       .query("bookings")
       .withIndex("by_date", (q) => q.eq("appointmentDate", args.appointmentDate))
       .filter((q) => q.eq(q.field("shopId"), args.shopId))
-      .filter((q) => q.eq(q.field("appointmentTime"), args.appointmentTime))
       .filter((q) =>
         q.or(
           q.eq(q.field("status"), "pending"),
           q.eq(q.field("status"), "confirmed")
         )
       )
-      .first();
+      .collect();
 
-    if (existingBooking) {
-      throw new Error("This time slot is already booked");
+    // Check for time overlaps
+    for (const booking of existingBookings) {
+      const [bookingHour, bookingMin] = booking.appointmentTime.split(":").map(Number);
+      const bookingStartMinutes = bookingHour * 60 + bookingMin;
+      const bookingEndMinutes = bookingStartMinutes + booking.totalDuration;
+
+      // Check if appointments overlap
+      if (appointmentStartMinutes < bookingEndMinutes && appointmentEndMinutes > bookingStartMinutes) {
+        throw new Error("This time slot overlaps with an existing booking");
+      }
     }
 
     // Create booking

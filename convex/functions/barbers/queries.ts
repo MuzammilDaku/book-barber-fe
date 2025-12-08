@@ -106,11 +106,20 @@ export const listBarbers = query({
     // Get all shops
     let shops = await ctx.db.query("shops").collect();
 
-    // Filter shops where user is a barber and onboarding is complete
+    // Filter shops where user is a barber, onboarding is complete, shop is deployed, and has active subscription
     const barberShops = [];
     for (const shop of shops) {
       const user = await ctx.db.get(shop.userId);
-      if (user && user.userType === "barber" && shop.onboardingComplete) {
+      if (user && user.userType === "barber" && shop.onboardingComplete && shop.deployed) {
+        // Check if barber has active subscription
+        const subscription = await ctx.db
+          .query("subscriptions")
+          .withIndex("by_userId", (q) => q.eq("userId", shop.userId))
+          .first();
+
+        if (!subscription || subscription.status !== "active") {
+          continue; // Skip shops without active subscription
+        }
         // Calculate average rating from completed bookings
         const completedBookings = await ctx.db
           .query("bookings")

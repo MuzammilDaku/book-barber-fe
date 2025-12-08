@@ -53,12 +53,10 @@ function BookingPageContent() {
     shopData?.userId ? { userId: shopData.userId } : "skip"
   );
 
-  // Fetch available time slots when date is selected
-  const availableTimeSlots = useQuery(
-    api.functions.bookings.queries.getAvailableTimeSlots,
-    shopData && selectedDate
-      ? { shopId: shopData._id, date: selectedDate }
-      : "skip"
+  // Fetch shop's subscription to determine booking limits
+  const shopSubscription = useQuery(
+    api.functions.subscriptions.queries.getSubscription,
+    shopData?.userId ? { userId: shopData.userId } : "skip"
   );
 
   const createBooking = useMutation(api.functions.bookings.mutations.createBooking);
@@ -99,6 +97,24 @@ function BookingPageContent() {
     return activeServices.filter((_, idx) => selectedServiceIndices.includes(idx));
   };
 
+  // Calculate total duration of selected services
+  const totalServiceDuration = getSelectedServicesData().reduce((sum, s) => sum + s.duration, 0);
+
+  // Fetch available time slots when date is selected
+  const timeSlotsData = useQuery(
+    api.functions.bookings.queries.getAvailableTimeSlots,
+    shopData && selectedDate
+      ? { 
+          shopId: shopData._id, 
+          date: selectedDate,
+          serviceDuration: totalServiceDuration > 0 ? totalServiceDuration : undefined
+        }
+      : "skip"
+  );
+
+  const availableTimeSlots = timeSlotsData?.available || [];
+  const bookedTimeSlots = timeSlotsData?.booked || [];
+
   const calculateTotal = () => {
     return getSelectedServicesData().reduce((sum, s) => sum + s.price, 0);
   };
@@ -119,25 +135,58 @@ function BookingPageContent() {
     setCurrentStep(step);
   };
 
-  // Generate available dates (next 30 days)
+  // Generate available dates based on subscription limits
   const getAvailableDates = () => {
     const dates: string[] = [];
-    const today = new Date();
+    // Get today's date in Pakistan timezone (PKT = UTC+5)
+    const now = new Date();
+    // Convert to Pakistan time (UTC+5)
+    const pakistanTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Karachi" }));
+    const year = pakistanTime.getFullYear();
+    const month = pakistanTime.getMonth();
+    const day = pakistanTime.getDate();
+    const today = new Date(year, month, day);
     
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      const dateString = date.toISOString().split('T')[0];
+    // Get today's date string in YYYY-MM-DD format
+    const todayString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    
+    // Determine max days based on subscription
+    let maxDays = 7; // Default for no subscription
+    if (shopSubscription && shopSubscription.status === "active") {
+      maxDays = shopSubscription.planType === "starter" ? 7 : 30;
+    }
+    
+    // Start from today (i = 0) and go forward
+    for (let i = 0; i < maxDays; i++) {
+      // Calculate date in Pakistan timezone
+      const date = new Date(year, month, day + i);
+      const dateYear = date.getFullYear();
+      const dateMonth = date.getMonth();
+      const dateDay = date.getDate();
+      const dateString = `${dateYear}-${String(dateMonth + 1).padStart(2, '0')}-${String(dateDay).padStart(2, '0')}`;
+      
+      // Ensure we don't add past dates (compare as strings)
+      if (dateString < todayString) {
+        continue; // Skip past dates
+      }
       
       // Check if shop is open on this day
       if (openingHoursData && openingHoursData.length > 0) {
         const dayOfWeek = date.getDay();
         const dayHours = openingHoursData.find(h => h.dayOfWeek === dayOfWeek);
-        if (dayHours && !dayHours.isClosed) {
-          dates.push(dateString);
+        
+        // Only add if shop is open (not closed) on this day
+        // Skip if dayHours doesn't exist, or if isClosed is true
+        if (!dayHours) {
+          continue; // Skip if no opening hours for this day
         }
+        if (dayHours.isClosed === true) {
+          continue; // Skip if shop is closed on this day
+        }
+        // Only add if shop is open
+        dates.push(dateString);
       } else {
-        // If no opening hours set, allow all dates
+        // If no opening hours set, allow all dates (but still check for past dates)
         dates.push(dateString);
       }
     }
@@ -146,21 +195,40 @@ function BookingPageContent() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    // Parse date in Pakistan timezone
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
     const dayOfWeek = days[date.getDay()];
-    const month = months[date.getMonth()];
-    const day = date.getDate();
+    const monthName = months[date.getMonth()];
+    const dayNum = date.getDate();
     
-    if (dateString === new Date().toISOString().split('T')[0]) {
-      return `Today, ${month} ${day}`;
+    // Get today's date in Pakistan timezone
+    const now = new Date();
+    const pakistanTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Karachi" }));
+    const todayYear = pakistanTime.getFullYear();
+    const todayMonth = pakistanTime.getMonth();
+    const todayDay = pakistanTime.getDate();
+    const todayString = `${todayYear}-${String(todayMonth + 1).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`;
+    
+    // Get tomorrow's date in Pakistan timezone
+    const tomorrow = new Date(pakistanTime);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowYear = tomorrow.getFullYear();
+    const tomorrowMonth = tomorrow.getMonth();
+    const tomorrowDay = tomorrow.getDate();
+    const tomorrowString = `${tomorrowYear}-${String(tomorrowMonth + 1).padStart(2, '0')}-${String(tomorrowDay).padStart(2, '0')}`;
+    
+    if (dateString === todayString) {
+      return `Today, ${monthName} ${dayNum}`;
     }
-    if (dateString === new Date(Date.now() + 86400000).toISOString().split('T')[0]) {
-      return `Tomorrow, ${month} ${day}`;
+    if (dateString === tomorrowString) {
+      return `Tomorrow, ${monthName} ${dayNum}`;
     }
-    return `${dayOfWeek}, ${month} ${day}`;
+    return `${dayOfWeek}, ${monthName} ${dayNum}`;
   };
 
   const formatTime = (timeString: string) => {
@@ -169,6 +237,22 @@ function BookingPageContent() {
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const formatTimeRange = (timeString: string, duration: number) => {
+    const [startHours, startMinutes] = timeString.split(':').map(Number);
+    const startTotalMinutes = startHours * 60 + startMinutes;
+    const endTotalMinutes = startTotalMinutes + duration;
+    
+    const endHours = Math.floor(endTotalMinutes / 60);
+    const endMins = endTotalMinutes % 60;
+    
+    const startHour = startHours % 12 || 12;
+    const startAmpm = startHours >= 12 ? 'PM' : 'AM';
+    const endHour = endHours % 12 || 12;
+    const endAmpm = endHours >= 12 ? 'PM' : 'AM';
+    
+    return `${startHour}:${String(startMinutes).padStart(2, '0')} ${startAmpm} - ${endHour}:${String(endMins).padStart(2, '0')} ${endAmpm}`;
   };
 
   const handleConfirmBooking = async () => {
@@ -394,19 +478,72 @@ function BookingPageContent() {
                     {selectedDate && (
                       <div>
                         <label htmlFor="appointment-time" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                          Select Time
+                          Select Time {totalServiceDuration > 0 && `(${totalServiceDuration} min per slot)`}
                         </label>
-                        {availableTimeSlots && availableTimeSlots.length > 0 ? (
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem' }}>
+                        {selectedServiceIndices.length === 0 ? (
+                          <p style={{ color: 'var(--secondary-color)', fontStyle: 'italic', marginBottom: '1rem' }}>
+                            Please select services first to see available time slots
+                          </p>
+                        ) : timeSlotsData === undefined ? (
+                          <p style={{ color: 'var(--secondary-color)', fontStyle: 'italic' }}>
+                            <i className="fas fa-spinner fa-spin"></i> Loading time slots...
+                          </p>
+                        ) : availableTimeSlots.length > 0 || bookedTimeSlots.length > 0 ? (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                            {/* Show available slots */}
                             {availableTimeSlots.map((time) => (
                               <button
                                 key={time}
                                 type="button"
                                 onClick={() => setSelectedTime(time)}
                                 className={selectedTime === time ? 'btn btn-primary' : 'btn btn-outline'}
-                                style={{ padding: '0.75rem' }}
+                                style={{ 
+                                  padding: '0.875rem 1rem',
+                                  background: selectedTime === time ? undefined : 'white',
+                                  borderColor: selectedTime === time ? undefined : '#e0e0e0',
+                                  fontSize: '0.9rem',
+                                  textAlign: 'center',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  minHeight: '60px',
+                                }}
+                                title={`Available: ${formatTimeRange(time, totalServiceDuration)}`}
                               >
-                                {formatTime(time)}
+                                <span style={{ fontWeight: '600' }}>{formatTimeRange(time, totalServiceDuration)}</span>
+                                <span style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '0.25rem' }}>Available</span>
+                              </button>
+                            ))}
+                            {/* Show booked slots in red */}
+                            {bookedTimeSlots.map((time) => (
+                              <button
+                                key={time}
+                                type="button"
+                                disabled
+                                style={{ 
+                                  padding: '0.875rem 1rem',
+                                  background: '#fee2e2',
+                                  color: '#dc2626',
+                                  border: '2px solid #fca5a5',
+                                  cursor: 'not-allowed',
+                                  opacity: 0.9,
+                                  fontSize: '0.9rem',
+                                  textAlign: 'center',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  minHeight: '60px',
+                                  fontWeight: '600',
+                                }}
+                                title={`Booked: ${formatTimeRange(time, totalServiceDuration)}`}
+                              >
+                                <span>{formatTimeRange(time, totalServiceDuration)}</span>
+                                <span style={{ fontSize: '0.75rem', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                  <i className="fas fa-lock" style={{ fontSize: '0.7rem' }}></i>
+                                  Booked
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -477,7 +614,7 @@ function BookingPageContent() {
                       <div className="confirmation-section">
                         <h4>Appointment</h4>
                         <p><strong>Date:</strong> {formatDate(selectedDate)}</p>
-                        <p><strong>Time:</strong> {formatTime(selectedTime)}</p>
+                        <p><strong>Time:</strong> {totalServiceDuration > 0 ? formatTimeRange(selectedTime, totalServiceDuration) : formatTime(selectedTime)}</p>
                         {notes && (
                           <p><strong>Notes:</strong> {notes}</p>
                         )}

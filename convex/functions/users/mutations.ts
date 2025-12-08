@@ -32,7 +32,7 @@ export const createUser = mutation({
     });
 
     if (args.userType === "barber") {
-      // Create shop with onboarding incomplete
+      // Create shop with onboarding incomplete and not deployed
       await ctx.db.insert("shops", {
         userId: userId,
         name: "",
@@ -40,6 +40,7 @@ export const createUser = mutation({
         image: "",
         experience: 0,
         onboardingComplete: false,
+        deployed: false,
         services: [],
         openingHours: [],
       });

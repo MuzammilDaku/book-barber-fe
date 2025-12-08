@@ -14,6 +14,8 @@ import type * as functions_barbers_queries from "../functions/barbers/queries.js
 import type * as functions_bookings_mutations from "../functions/bookings/mutations.js";
 import type * as functions_bookings_queries from "../functions/bookings/queries.js";
 import type * as functions_storage_mutations from "../functions/storage/mutations.js";
+import type * as functions_subscriptions_mutations from "../functions/subscriptions/mutations.js";
+import type * as functions_subscriptions_queries from "../functions/subscriptions/queries.js";
 import type * as functions_users_mutations from "../functions/users/mutations.js";
 import type * as functions_users_queries from "../functions/users/queries.js";
 import type * as http from "../http.js";
@@ -31,6 +33,8 @@ declare const fullApi: ApiFromModules<{
   "functions/bookings/mutations": typeof functions_bookings_mutations;
   "functions/bookings/queries": typeof functions_bookings_queries;
   "functions/storage/mutations": typeof functions_storage_mutations;
+  "functions/subscriptions/mutations": typeof functions_subscriptions_mutations;
+  "functions/subscriptions/queries": typeof functions_subscriptions_queries;
   "functions/users/mutations": typeof functions_users_mutations;
   "functions/users/queries": typeof functions_users_queries;
   http: typeof http;

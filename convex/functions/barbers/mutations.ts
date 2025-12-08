@@ -13,15 +13,39 @@ export const updateShop = mutation({
     image: v.string(),
   },
   handler: async (ctx, args) => {
-    const shop = await ctx.db
+    // Verify user exists and is a barber
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    if (user.userType !== "barber") {
+      throw new Error("Only barbers can have shops");
+    }
+
+    let shop = await ctx.db
       .query("shops")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .first();
 
+    // Create shop if it doesn't exist
     if (!shop) {
-      throw new Error("Shop not found");
+      const shopId = await ctx.db.insert("shops", {
+        userId: args.userId,
+        name: args.name,
+        address: args.address,
+        phone: args.phone,
+        description: args.description,
+        experience: args.experience,
+        image: args.image,
+        onboardingComplete: false,
+        deployed: false,
+        services: [],
+        openingHours: [],
+      });
+      return shopId;
     }
 
+    // Update existing shop
     await ctx.db.patch(shop._id, {
       name: args.name,
       address: args.address,
@@ -49,8 +73,54 @@ export const completeOnboarding = mutation({
       throw new Error("Shop not found");
     }
 
+    // Check if user has active subscription
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .first();
+
+    // Auto-deploy if subscription is active
+    const shouldDeploy = !!(subscription && subscription.status === "active");
+
     await ctx.db.patch(shop._id, {
       onboardingComplete: true,
+      deployed: shouldDeploy, // Automatically deploy if subscription is active
+    });
+
+    return shop._id;
+  },
+});
+
+export const deployShop = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const shop = await ctx.db
+      .query("shops")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (!shop) {
+      throw new Error("Shop not found");
+    }
+
+    if (!shop.onboardingComplete) {
+      throw new Error("Please complete onboarding first");
+    }
+
+    // Check if user has active subscription
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (!subscription || subscription.status !== "active") {
+      throw new Error("Active subscription is required to deploy your shop");
+    }
+
+    await ctx.db.patch(shop._id, {
+      deployed: true,
     });
 
     return shop._id;

@@ -18,6 +18,7 @@ export default defineSchema({
     phone: v.optional(v.string()),
     description: v.optional(v.string()),
     onboardingComplete: v.boolean(),
+    deployed: v.boolean(), // Shop is visible to customers only when deployed and has active subscription
     services: v.array(
       v.object({
         name: v.string(),
@@ -63,4 +64,23 @@ export default defineSchema({
     .index("by_customerId", ["customerId"])
     .index("by_shopId", ["shopId"])
     .index("by_date", ["appointmentDate"]),
+
+  subscriptions: defineTable({
+    userId: v.id("users"),
+    planType: v.union(v.literal("starter"), v.literal("pro")),
+    stripeCustomerId: v.optional(v.string()),
+    stripeSubscriptionId: v.optional(v.string()),
+    stripePriceId: v.optional(v.string()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("canceled"),
+      v.literal("past_due"),
+      v.literal("incomplete")
+    ),
+    currentPeriodStart: v.number(), // Unix timestamp
+    currentPeriodEnd: v.number(), // Unix timestamp
+    cancelAtPeriodEnd: v.boolean(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_stripeCustomerId", ["stripeCustomerId"]),
 });

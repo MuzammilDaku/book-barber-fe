@@ -120,17 +120,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <div className="social-login">
-              <p>Or login with</p>
-              <div className="social-buttons">
-                <button className="social-btn google">
-                  <i className="fab fa-google"></i> Google
-                </button>
-                <button className="social-btn facebook">
-                  <i className="fab fa-facebook-f"></i> Facebook
-                </button>
-              </div>
-            </div>
+       
 
             <div className="auth-switch">
               <p>

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
@@ -53,8 +53,9 @@ const PREDEFINED_SERVICES = [
   { name: "Hair Color", description: "Hair coloring service", defaultPrice: 1500, defaultDuration: 90 },
 ];
 
-export default function BarberDashboard() {
+function BarberDashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = authClient.useSession();
   const user = useQuery(
     api.functions.users.queries.getUser,
@@ -81,6 +82,14 @@ export default function BarberDashboard() {
     api.functions.bookings.queries.getBookingsByShop,
     shop?._id ? { shopId: shop._id } : "skip"
   );
+
+  // Fetch subscription
+  const subscription = useQuery(
+    api.functions.subscriptions.queries.getSubscription,
+    user?._id ? { userId: user._id } : "skip"
+  );
+
+  const deployShop = useMutation(api.functions.barbers.mutations.deployShop);
 
   // Calculate appointment stats
   const appointmentStats = {
@@ -121,6 +130,17 @@ export default function BarberDashboard() {
   const setAllOpeningHours = useMutation(api.functions.barbers.mutations.setAllOpeningHours);
   const updateShop = useMutation(api.functions.barbers.mutations.updateShop);
   const updateBookingStatus = useMutation(api.functions.bookings.mutations.updateBookingStatus);
+
+  // Handle Stripe redirect
+  useEffect(() => {
+    const success = searchParams?.get("success");
+    if (success) {
+      toast.success("Subscription activated successfully! You can now continue with your shop setup.");
+      // Clean URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
+    }
+  }, [searchParams]);
 
   // Initialize forms from fetched data
   useEffect(() => {
@@ -295,8 +315,8 @@ export default function BarberDashboard() {
     );
   }
 
-  // Show onboarding if not complete
-  if (shop && !shop.onboardingComplete) {
+  // Show onboarding if no shop exists or onboarding is not complete
+  if (!shop || !shop.onboardingComplete) {
     return (
       <>
         <Header />
@@ -368,96 +388,81 @@ export default function BarberDashboard() {
             }}>
               {shop?.name || "Your Barber Shop"} • {services?.length || 0} Services • Manage your business
             </p>
+            {shop && !shop.deployed && (
+              <div style={{ marginTop: "2rem", display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+                <div style={{ 
+                  padding: "1rem 1.5rem", 
+                  background: "rgba(255, 255, 255, 0.2)", 
+                  borderRadius: "12px",
+                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(255, 255, 255, 0.3)",
+                }}>
+                  <p style={{ margin: 0, fontSize: "0.95rem", opacity: 0.9 }}>
+                    <i className="fas fa-info-circle"></i> Your shop is not yet visible to customers
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!subscription || subscription.status !== "active") {
+                      toast.error("Active subscription required to deploy your shop");
+                      router.push("/pricing");
+                      return;
+                    }
+                    try {
+                      await deployShop({ userId: user._id });
+                      toast.success("Shop deployed successfully! Your shop is now visible to customers.");
+                    } catch (error: any) {
+                      toast.error(error.message || "Failed to deploy shop");
+                    }
+                  }}
+                  style={{
+                    padding: "1rem 2rem",
+                    background: "white",
+                    color: "var(--primary-color)",
+                    border: "none",
+                    borderRadius: "12px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    fontSize: "1rem",
+                    boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "0 4px 15px rgba(0,0,0,0.2)";
+                  }}
+                >
+                  <i className="fas fa-rocket"></i> Deploy Your Shop
+                </button>
+              </div>
+            )}
+            {shop && shop.deployed && (
+              <div style={{ marginTop: "1.5rem" }}>
+                <div style={{ 
+                  padding: "0.75rem 1.5rem", 
+                  background: "rgba(34, 197, 94, 0.2)", 
+                  borderRadius: "12px",
+                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(34, 197, 94, 0.3)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                }}>
+                  <i className="fas fa-check-circle" style={{ color: "#22c55e" }}></i>
+                  <span style={{ fontSize: "0.95rem", fontWeight: 500 }}>Shop is live and visible to customers</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Stats Cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "2rem", marginBottom: "3rem" }}>
-          <div style={{ 
-            background: "linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)",
-            backdropFilter: "blur(10px)",
-            padding: "2rem",
-            borderRadius: "20px",
-            border: "1px solid rgba(99, 102, 241, 0.2)",
-            boxShadow: "0 8px 32px rgba(99, 102, 241, 0.15)",
-            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-            cursor: "pointer",
-            position: "relative",
-            overflow: "hidden",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-8px) scale(1.02)";
-            e.currentTarget.style.boxShadow = "0 12px 40px rgba(99, 102, 241, 0.25)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0) scale(1)";
-            e.currentTarget.style.boxShadow = "0 8px 32px rgba(99, 102, 241, 0.15)";
-          }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
-              <div style={{ 
-                width: "70px", 
-                height: "70px", 
-                borderRadius: "18px", 
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                boxShadow: "0 8px 20px rgba(102, 126, 234, 0.4)",
-              }}>
-                <i className="fas fa-list-alt" style={{ fontSize: "2rem", color: "#ffffff" }}></i>
-              </div>
-              <div>
-                <div style={{ fontSize: "2.5rem", fontWeight: "800", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-                  {services?.length || 0}
-                </div>
-                <div style={{ fontSize: "1rem", color: "var(--secondary-color)", fontWeight: 500, marginTop: "0.25rem" }}>Active Services</div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ 
-            background: "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)",
-            backdropFilter: "blur(10px)",
-            padding: "2rem",
-            borderRadius: "20px",
-            border: "1px solid rgba(16, 185, 129, 0.2)",
-            boxShadow: "0 8px 32px rgba(16, 185, 129, 0.15)",
-            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-            cursor: "pointer",
-            position: "relative",
-            overflow: "hidden",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-8px) scale(1.02)";
-            e.currentTarget.style.boxShadow = "0 12px 40px rgba(16, 185, 129, 0.25)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0) scale(1)";
-            e.currentTarget.style.boxShadow = "0 8px 32px rgba(16, 185, 129, 0.15)";
-          }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
-              <div style={{ 
-                width: "70px", 
-                height: "70px", 
-                borderRadius: "18px", 
-                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                boxShadow: "0 8px 20px rgba(16, 185, 129, 0.4)",
-              }}>
-                <i className="fas fa-clock" style={{ fontSize: "2rem", color: "#ffffff" }}></i>
-              </div>
-              <div>
-                <div style={{ fontSize: "2.5rem", fontWeight: "800", background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-                  {openingHours?.filter((h) => !h.isClosed).length || 0}
-                </div>
-                <div style={{ fontSize: "1rem", color: "var(--secondary-color)", fontWeight: 500, marginTop: "0.25rem" }}>Working Days</div>
-              </div>
-            </div>
-          </div>
+        
 
           <div style={{ 
             background: "linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%)",
@@ -1430,5 +1435,21 @@ export default function BarberDashboard() {
       </div>
       <Footer />
     </>
+  );
+}
+
+export default function BarberDashboard() {
+  return (
+    <Suspense fallback={
+      <>
+        <Header />
+        <div className="container" style={{ padding: "2rem", textAlign: "center" }}>
+          <p>Loading...</p>
+        </div>
+        <Footer />
+      </>
+    }>
+      <BarberDashboardContent />
+    </Suspense>
   );
 }

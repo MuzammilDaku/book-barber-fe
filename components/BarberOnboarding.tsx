@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import toast from "react-hot-toast";
@@ -33,10 +34,20 @@ interface BarberOnboardingProps {
 }
 
 export default function BarberOnboarding({ userId, onComplete }: BarberOnboardingProps) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 4;
+  const router = useRouter();
+  
+  // Check subscription status first
+  const subscription = useQuery(
+    api.functions.subscriptions.queries.getSubscription,
+    { userId }
+  );
 
-  // Step 1: Shop Details
+  // Determine initial step based on subscription
+  const isSubscribed = subscription && subscription.status === "active";
+  const [currentStep, setCurrentStep] = useState(isSubscribed ? 1 : 0); // 0 = pricing, 1 = shop details
+  const totalSteps = isSubscribed ? 4 : 5; // 5 if not subscribed (includes pricing), 4 if subscribed
+
+  // Step 1: Shop Details (or Step 2 if pricing is first)
   const [shopDetails, setShopDetails] = useState({
     name: "",
     address: "",
@@ -81,6 +92,12 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
   const completeOnboarding = useMutation(api.functions.barbers.mutations.completeOnboarding);
   const generateUploadUrl = useMutation(api.functions.storage.mutations.generateUploadUrl);
   const getStorageUrl = useMutation(api.functions.storage.mutations.getStorageUrl);
+
+  // Fetch existing services to avoid duplicates
+  const existingServices = useQuery(
+    api.functions.barbers.queries.getServices,
+    { userId }
+  );
   
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
@@ -111,8 +128,23 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
     reader.readAsDataURL(file);
   };
 
+  // Update step when subscription status changes
+  useEffect(() => {
+    if (subscription && subscription.status === "active" && currentStep === 0) {
+      setCurrentStep(1); // Move to shop details after subscription
+    }
+  }, [subscription, currentStep]);
+
   const handleNext = async () => {
-    if (currentStep === 1) {
+    if (currentStep === 0) {
+      // Pricing step - check if subscribed
+      if (!subscription || subscription.status !== "active") {
+        toast.error("Please subscribe to a plan to continue");
+        router.push("/pricing");
+        return;
+      }
+      setCurrentStep(1); // Move to shop details
+    } else if (currentStep === 1) {
       // Validate shop details
       if (!shopDetails.name || !shopDetails.address) {
         toast.error("Please fill in all required fields");
@@ -173,15 +205,36 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
         return;
       }
       try {
-        for (const service of services) {
+        // Get existing service names to avoid duplicates
+        const existingServiceNames = new Set((existingServices || []).map(s => s.name.toLowerCase()));
+        
+        // Filter out services that already exist
+        const newServices = services.filter(service => 
+          !existingServiceNames.has(service.name.toLowerCase())
+        );
+
+        if (newServices.length === 0) {
+          // All services already exist, just proceed
+          toast.success("Services already saved!");
+          setCurrentStep(3);
+          return;
+        }
+
+        // Add only new services
+        for (const service of newServices) {
           await addService({
             userId,
-            ...service,
+            name: service.name,
+            description: service.description,
+            price: service.price,
+            duration: service.duration,
           });
         }
-        setCurrentStep(3);
-      } catch (error) {
-        toast.error("Failed to save services");
+        toast.success(`${newServices.length} service${newServices.length > 1 ? 's' : ''} saved successfully!`);
+        setCurrentStep(3); // Move to opening hours
+      } catch (error: any) {
+        console.error("Error saving services:", error);
+        toast.error(error?.message || "Failed to save services. Please try again.");
       }
     } else if (currentStep === 3) {
       // Validate hours
@@ -194,10 +247,26 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
           userId,
           hours: hoursArray,
         });
-        setCurrentStep(4);
+        toast.success("Opening hours saved successfully!");
+        // Move to review (or pricing if not subscribed)
+        if (isSubscribed) {
+          setCurrentStep(4); // Review step (step 4 when subscribed, totalSteps = 4)
+        } else {
+          setCurrentStep(4); // Pricing step (step 4 when not subscribed, totalSteps = 5)
+        }
       } catch (error) {
         toast.error("Failed to save opening hours");
+        console.error(error);
       }
+    } else if (currentStep === 4 && !isSubscribed) {
+      // Pricing step (last step if not subscribed) - check if subscribed
+      if (!subscription || subscription.status !== "active") {
+        toast.error("Please subscribe to a plan to continue");
+        router.push("/pricing");
+        return;
+      }
+      // If subscription becomes active, move to review (step 5 when not subscribed, but we'll use step 4 for review when subscribed)
+      // Actually, if subscribed, step 4 is already review, so we don't need to move
     }
   };
 
@@ -279,24 +348,82 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
         {/* Progress Bar */}
         <div style={{ marginBottom: "3rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
-            {[...Array(totalSteps)].map((_, index) => (
-              <div
-                key={index}
-                style={{
-                  width: "100%",
-                  height: "4px",
-                  backgroundColor: index + 1 <= currentStep ? "var(--accent-color)" : "var(--border-color)",
-                  marginRight: index < totalSteps - 1 ? "0.5rem" : "0",
-                  borderRadius: "2px",
-                  transition: "all 0.3s",
-                }}
-              />
-            ))}
+            {[...Array(totalSteps)].map((_, index) => {
+              const stepNumber = isSubscribed ? index + 1 : index; // Adjust for step 0
+              const isCompleted = stepNumber <= currentStep;
+              return (
+                <div
+                  key={index}
+                  style={{
+                    width: "100%",
+                    height: "4px",
+                    backgroundColor: isCompleted ? "var(--accent-color)" : "var(--border-color)",
+                    marginRight: index < totalSteps - 1 ? "0.5rem" : "0",
+                    borderRadius: "2px",
+                    transition: "all 0.3s",
+                  }}
+                />
+              );
+            })}
           </div>
           <div style={{ textAlign: "center", fontSize: "1.2rem", fontWeight: "600", color: "var(--primary-color)" }}>
-            Step {currentStep} of {totalSteps}
+            Step {currentStep === 0 ? 1 : currentStep} of {totalSteps}
           </div>
         </div>
+
+        {/* Step 0: Pricing (First step if not subscribed) */}
+        {currentStep === 0 && (
+          <div>
+            <h2 style={{ marginBottom: "2rem", color: "var(--primary-color)", textAlign: "center" }}>
+              <i className="fas fa-credit-card" style={{ color: "var(--accent-color)", fontSize: "3rem", display: "block", marginBottom: "1rem" }}></i>
+              Subscribe to Get Started
+            </h2>
+            <div
+              style={{
+                padding: "2rem",
+                backgroundColor: "var(--light-bg)",
+                borderRadius: "12px",
+                marginBottom: "2rem",
+                textAlign: "center",
+              }}
+            >
+              <p style={{ fontSize: "1.2rem", marginBottom: "1rem", color: "var(--primary-color)", fontWeight: "500" }}>
+                A subscription is required to set up your shop and start receiving bookings.
+              </p>
+              <p style={{ fontSize: "1rem", marginBottom: "2rem", color: "var(--secondary-color)" }}>
+                Subscribe now, then complete your shop details. You won't need to come back and enter details again!
+              </p>
+              {subscription && subscription.status === "active" ? (
+                <div style={{ padding: "1.5rem", background: "var(--accent-gradient)", borderRadius: "10px", color: "white" }}>
+                  <i className="fas fa-check-circle" style={{ fontSize: "3rem", marginBottom: "1rem" }}></i>
+                  <h3 style={{ marginBottom: "0.5rem" }}>Active Subscription</h3>
+                  <p>You're on the <strong>{subscription.planType === "starter" ? "Starter" : "Pro"}</strong> plan</p>
+                  <p style={{ fontSize: "0.9rem", opacity: 0.9, marginTop: "0.5rem" }}>
+                    Valid until {new Date(subscription.currentPeriodEnd * 1000).toLocaleDateString()}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ padding: "2rem" }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => router.push("/pricing")}
+                    style={{ 
+                      padding: "1.25rem 3rem", 
+                      fontSize: "1.2rem",
+                      fontWeight: "bold",
+                      borderRadius: "12px",
+                    }}
+                  >
+                    <i className="fas fa-arrow-right"></i> Choose Your Plan
+                  </button>
+                  <p style={{ fontSize: "0.9rem", color: "var(--secondary-color)", marginTop: "1rem" }}>
+                    After subscribing, you'll return here to complete your shop setup
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Step 1: Shop Details */}
         {currentStep === 1 && (
@@ -736,8 +863,53 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
           </div>
         )}
 
-        {/* Step 4: Review */}
-        {currentStep === 4 && (
+        {/* Step 4: Pricing (Last step if not subscribed) */}
+        {currentStep === 4 && !isSubscribed && (
+          <div>
+            <h2 style={{ marginBottom: "2rem", color: "var(--primary-color)", textAlign: "center" }}>
+              <i className="fas fa-credit-card" style={{ color: "var(--accent-color)", fontSize: "3rem", display: "block", marginBottom: "1rem" }}></i>
+              Complete Your Subscription
+            </h2>
+            <div
+              style={{
+                padding: "2rem",
+                backgroundColor: "var(--light-bg)",
+                borderRadius: "12px",
+                marginBottom: "2rem",
+                textAlign: "center",
+              }}
+            >
+              <p style={{ fontSize: "1.1rem", marginBottom: "2rem", color: "var(--primary-color)" }}>
+                Almost done! Subscribe to complete your shop setup and start receiving bookings.
+              </p>
+              {subscription && subscription.status === "active" ? (
+                <div style={{ padding: "1.5rem", background: "var(--accent-gradient)", borderRadius: "10px", color: "white" }}>
+                  <i className="fas fa-check-circle" style={{ fontSize: "3rem", marginBottom: "1rem" }}></i>
+                  <h3 style={{ marginBottom: "0.5rem" }}>Active Subscription</h3>
+                  <p>You're on the <strong>{subscription.planType === "starter" ? "Starter" : "Pro"}</strong> plan</p>
+                </div>
+              ) : (
+                <div style={{ padding: "2rem" }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => router.push("/pricing")}
+                    style={{ 
+                      padding: "1.25rem 3rem", 
+                      fontSize: "1.2rem",
+                      fontWeight: "bold",
+                      borderRadius: "12px",
+                    }}
+                  >
+                    <i className="fas fa-arrow-right"></i> Subscribe Now
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Step 3 or 4: Review */}
+        {(currentStep === 3 || (currentStep === 4 && isSubscribed)) && (
           <div>
             <h2 style={{ marginBottom: "2rem", color: "var(--primary-color)", textAlign: "center" }}>
               <i className="fas fa-check-circle" style={{ color: "var(--accent-color)", fontSize: "3rem", display: "block", marginBottom: "1rem" }}></i>
@@ -755,7 +927,7 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
               <p style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>
                 Your barbershop profile is ready! Complete the setup to start receiving bookings.
               </p>
-              <div style={{ display: "flex", justifyContent: "center", gap: "2rem", marginTop: "2rem" }}>
+              <div style={{ display: "flex", justifyContent: "center", gap: "2rem", marginTop: "2rem", flexWrap: "wrap" }}>
                 <div style={{ textAlign: "center" }}>
                   <i className="fas fa-store" style={{ fontSize: "2rem", color: "var(--accent-color)", marginBottom: "0.5rem" }}></i>
                   <div style={{ fontWeight: "600" }}>Shop Details</div>
@@ -771,6 +943,11 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
                   <div style={{ fontWeight: "600" }}>Opening Hours</div>
                   <div style={{ fontSize: "0.9rem", color: "var(--secondary-color)" }}>✓ Set</div>
                 </div>
+                <div style={{ textAlign: "center" }}>
+                  <i className="fas fa-credit-card" style={{ fontSize: "2rem", color: "var(--accent-color)", marginBottom: "0.5rem" }}></i>
+                  <div style={{ fontWeight: "600" }}>Subscription</div>
+                  <div style={{ fontSize: "0.9rem", color: "var(--secondary-color)" }}>✓ Active</div>
+                </div>
               </div>
             </div>
           </div>
@@ -778,13 +955,13 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
 
         {/* Navigation Buttons */}
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: "3rem", gap: "1rem" }}>
-          {currentStep > 1 && (
+          {currentStep > (isSubscribed ? 1 : 0) && (
             <button className="btn btn-outline" onClick={() => setCurrentStep(currentStep - 1)} style={{ padding: "0.75rem 2rem" }}>
               <i className="fas fa-arrow-left"></i> Previous
             </button>
           )}
           <div style={{ flex: 1 }} />
-          {currentStep < totalSteps ? (
+          {(currentStep < totalSteps - 1 || (currentStep === 4 && !isSubscribed)) ? (
             <button 
               className="btn btn-primary" 
               onClick={handleNext} 
@@ -794,6 +971,18 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
               {isUploading ? (
                 <>
                   <i className="fas fa-spinner fa-spin"></i> Uploading...
+                </>
+              ) : currentStep === 0 ? (
+                <>
+                  {subscription && subscription.status === "active" ? (
+                    <>
+                      Continue <i className="fas fa-arrow-right"></i>
+                    </>
+                  ) : (
+                    <>
+                      Subscribe to Continue <i className="fas fa-arrow-right"></i>
+                    </>
+                  )}
                 </>
               ) : (
                 <>
