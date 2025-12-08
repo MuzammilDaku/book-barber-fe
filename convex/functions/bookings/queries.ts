@@ -22,7 +22,12 @@ export const getAvailableTimeSlots = query({
     // Find opening hours for this day
     const openingHours = shop.openingHours?.find((h) => h.dayOfWeek === dayOfWeek);
 
-    if (!openingHours || openingHours.isClosed) {
+    if (!openingHours) {
+      // No opening hours set for this day - return empty
+      return { available: [], booked: [] };
+    }
+
+    if (openingHours.isClosed) {
       return { available: [], booked: [] }; // Shop is closed on this day
     }
 
@@ -42,20 +47,41 @@ export const getAvailableTimeSlots = query({
     const slotDuration = args.serviceDuration || 30;
 
     // Ensure slot duration is reasonable
-    if (slotDuration <= 0 || slotDuration > (closeTime - openTime)) {
+    const totalAvailableMinutes = closeTime - openTime;
+    if (slotDuration <= 0) {
       return { available: [], booked: [] }; // Invalid slot duration
+    }
+    
+    // If service duration is longer than available time, return empty
+    if (slotDuration > totalAvailableMinutes) {
+      // Service is too long for the shop's operating hours on this day
+      return { available: [], booked: [] };
     }
 
     // Generate time slots based on service duration
+    // Use smaller intervals (15 minutes) to generate more slot options
+    const slotInterval = 15; // Generate slots every 15 minutes
     const slots: string[] = [];
-    for (let minutes = openTime; minutes < closeTime; minutes += slotDuration) {
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
+    
+    // Generate slots at 15-minute intervals, but only include those that can fit the service duration
+    // Start from openTime and continue until we can't fit a full service
+    let currentTime = openTime;
+    while (currentTime + slotDuration <= closeTime) {
+      const hours = Math.floor(currentTime / 60);
+      const mins = currentTime % 60;
       const slotTime = `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
-      // Only add slot if it fits within opening hours
-      if (minutes + slotDuration <= closeTime) {
-        slots.push(slotTime);
+      slots.push(slotTime);
+      currentTime += slotInterval;
+      
+      // Safety check to prevent infinite loops
+      if (currentTime > closeTime + 1000) {
+        break;
       }
+    }
+    
+    // If no slots can be generated, return early
+    if (slots.length === 0) {
+      return { available: [], booked: [] };
     }
 
     // Get existing bookings for this date (include pending, confirmed, and completed)
@@ -81,16 +107,20 @@ export const getAvailableTimeSlots = query({
       const bookingDuration = booking.totalDuration || 30; // Use booking duration or default to 30
       
       // Mark all slots that overlap with this booking
-      for (let slotMinutes = openTime; slotMinutes < closeTime; slotMinutes += slotDuration) {
-        const slotEnd = slotMinutes + slotDuration;
-        const bookingEnd = startMinutes + bookingDuration;
-        
-        // Check if slot overlaps with booking
-        if (slotMinutes < bookingEnd && slotEnd > startMinutes) {
-          const hours = Math.floor(slotMinutes / 60);
-          const mins = slotMinutes % 60;
-          const slotTime = `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
-          bookedSlotsSet.add(slotTime);
+      // Check all potential slots (every 15 minutes) that could overlap
+      for (let slotMinutes = openTime; slotMinutes < closeTime; slotMinutes += slotInterval) {
+        // Only check slots that can accommodate the service duration
+        if (slotMinutes + slotDuration <= closeTime) {
+          const slotEnd = slotMinutes + slotDuration;
+          const bookingEnd = startMinutes + bookingDuration;
+          
+          // Check if slot overlaps with booking
+          if (slotMinutes < bookingEnd && slotEnd > startMinutes) {
+            const hours = Math.floor(slotMinutes / 60);
+            const mins = slotMinutes % 60;
+            const slotTime = `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+            bookedSlotsSet.add(slotTime);
+          }
         }
       }
     }
@@ -103,15 +133,8 @@ export const getAvailableTimeSlots = query({
       if (bookedSlotsSet.has(slot)) {
         bookedSlots.push(slot);
       } else {
-        // Check if slot has enough time for the service
-        const [slotHour, slotMin] = slot.split(":").map(Number);
-        const slotStartMinutes = slotHour * 60 + slotMin;
-        const slotEndMinutes = slotStartMinutes + slotDuration;
-        
-        // Only add if slot doesn't go past closing time
-        if (slotEndMinutes <= closeTime) {
-          availableSlots.push(slot);
-        }
+        // All slots in the array already fit within opening hours, so add directly
+        availableSlots.push(slot);
       }
     }
 

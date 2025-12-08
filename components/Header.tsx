@@ -117,7 +117,16 @@ export default function Header() {
             <div
               style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
             >
-              {user.userType === "barber" ? (
+              {user.userType === "admin" ? (
+                <Link
+                  href="/admin/dashboard"
+                  className={`btn btn-primary ${
+                    isActive("/admin/dashboard") ? "active" : ""
+                  }`}
+                >
+                  <i className="fas fa-shield-alt"></i> Admin Dashboard
+                </Link>
+              ) : user.userType === "barber" ? (
                 <Link
                   href="/barber/dashboard"
                   className={`btn btn-primary ${

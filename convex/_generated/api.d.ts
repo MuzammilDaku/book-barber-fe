@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as functions_admin_queries from "../functions/admin/queries.js";
 import type * as functions_barbers_mutations from "../functions/barbers/mutations.js";
 import type * as functions_barbers_queries from "../functions/barbers/queries.js";
 import type * as functions_bookings_mutations from "../functions/bookings/mutations.js";
@@ -28,6 +29,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  "functions/admin/queries": typeof functions_admin_queries;
   "functions/barbers/mutations": typeof functions_barbers_mutations;
   "functions/barbers/queries": typeof functions_barbers_queries;
   "functions/bookings/mutations": typeof functions_bookings_mutations;

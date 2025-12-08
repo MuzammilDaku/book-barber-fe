@@ -239,10 +239,55 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
     } else if (currentStep === 3) {
       // Validate hours
       try {
-        const hoursArray = DAYS_OF_WEEK.map((day) => ({
-          dayOfWeek: day.value,
-          ...hours[day.value],
-        }));
+        // Ensure all days have hours data, use defaults if missing
+        const hoursArray = DAYS_OF_WEEK.map((day) => {
+          const dayHours = hours[day.value];
+          if (!dayHours) {
+            // If hours not set for this day, use defaults
+            return {
+              dayOfWeek: day.value,
+              openingTime: "09:00",
+              closingTime: "18:00",
+              isClosed: day.value === 0, // Default: closed on Sunday
+            };
+          }
+          // Ensure time values are in correct format (HH:mm)
+          const openingTime = dayHours.openingTime || "09:00";
+          const closingTime = dayHours.closingTime || "18:00";
+          
+          // Validate time format
+          const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
+          if (!timeRegex.test(openingTime) || !timeRegex.test(closingTime)) {
+            throw new Error(`Invalid time format for ${DAYS_OF_WEEK.find(d => d.value === day.value)?.label}. Please use HH:mm format.`);
+          }
+          
+          // Validate that closing time is after opening time (if not closed)
+          if (!dayHours.isClosed) {
+            const [openHour, openMin] = openingTime.split(":").map(Number);
+            const [closeHour, closeMin] = closingTime.split(":").map(Number);
+            const openMinutes = openHour * 60 + openMin;
+            const closeMinutes = closeHour * 60 + closeMin;
+            
+            if (closeMinutes <= openMinutes) {
+              throw new Error(`Closing time must be after opening time for ${DAYS_OF_WEEK.find(d => d.value === day.value)?.label}`);
+            }
+          }
+          
+          return {
+            dayOfWeek: day.value,
+            openingTime: openingTime,
+            closingTime: closingTime,
+            isClosed: dayHours.isClosed ?? false,
+          };
+        });
+        
+        // Validate that at least one day is open
+        const hasOpenDay = hoursArray.some(h => !h.isClosed);
+        if (!hasOpenDay) {
+          toast.error("Please set at least one day as open");
+          return;
+        }
+        
         await setAllOpeningHours({
           userId,
           hours: hoursArray,
@@ -254,8 +299,8 @@ export default function BarberOnboarding({ userId, onComplete }: BarberOnboardin
         } else {
           setCurrentStep(4); // Pricing step (step 4 when not subscribed, totalSteps = 5)
         }
-      } catch (error) {
-        toast.error("Failed to save opening hours");
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to save opening hours");
         console.error(error);
       }
     } else if (currentStep === 4 && !isSubscribed) {

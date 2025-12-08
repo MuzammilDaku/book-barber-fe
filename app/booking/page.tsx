@@ -548,7 +548,16 @@ function BookingPageContent() {
                             ))}
                           </div>
                         ) : (
-                          <p>No available time slots for this date</p>
+                          <div style={{ padding: "1rem", background: "var(--light-bg)", borderRadius: "8px", textAlign: "center" }}>
+                            <p style={{ margin: 0, color: "var(--secondary-color)", marginBottom: "0.5rem" }}>
+                              <i className="fas fa-info-circle" style={{ marginRight: "0.5rem" }}></i>
+                              No available time slots for this date
+                            </p>  
+                            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--secondary-color)", opacity: 0.8 }}>
+                              {totalServiceDuration > 0 && `Service duration: ${totalServiceDuration} minutes. `}
+                              The shop may be closed or all slots are booked.
+                            </p>
+                          </div>
                         )}
                       </div>
                     )}
